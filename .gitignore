@@ -1,3 +1,6 @@
+# Local overrides (optional)
+assets/env/local.env
+
 # Miscellaneous
 *.class
 *.log

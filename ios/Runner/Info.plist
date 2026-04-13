@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>La caméra sert à filmer des vidéos pour la galerie.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Le micro enregistre le son des vidéos envoyées à la galerie.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Accès aux photos et vidéos pour les ajouter à la galerie.</string>
 </dict>
 </plist>
