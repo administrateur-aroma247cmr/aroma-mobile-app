@@ -13,6 +13,7 @@ class AromaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Aroma JPC',
+      debugShowCheckedModeBanner: false,
       theme: buildAromaTheme(),
       themeMode: ThemeMode.light,
       home: const _AuthGate(),

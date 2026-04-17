@@ -5,23 +5,20 @@ import '../widgets/aroma_logo.dart';
 
 /// Accueil type grille de modules (même esprit que le CRM web).
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({
-    super.key,
-    required this.onOpenGalerie,
-  });
+  const HomeScreen({super.key, required this.onOpenGalerie});
 
   final VoidCallback onOpenGalerie;
 
   @override
   Widget build(BuildContext context) {
     final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: AromaColors.zinc800,
-          letterSpacing: -0.5,
-        );
-    final subtitleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: AromaColors.zinc500,
-        );
+      fontWeight: FontWeight.w600,
+      color: AromaColors.zinc800,
+      letterSpacing: -0.5,
+    );
+    final subtitleStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(color: AromaColors.zinc500);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
@@ -44,39 +41,28 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, c) {
-              final w = c.maxWidth;
-              int cols = 1;
-              if (w >= 900) {
-                cols = 4;
-              } else if (w >= 600) {
-                cols = 2;
-              }
-              return GridView.count(
-                crossAxisCount: cols,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 20,
-                mainAxisSpacing: 20,
-                childAspectRatio: 0.92,
-                children: [
-                  _ModuleCard(
-                    title: 'Ma galerie',
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AromaColors.galerieGradientStart,
-                        AromaColors.galerieGradientEnd,
-                      ],
-                    ),
-                    icon: Icons.image_outlined,
-                    onTap: onOpenGalerie,
-                  ),
-                ],
-              );
-            },
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 20,
+            mainAxisSpacing: 20,
+            childAspectRatio: 0.92,
+            children: [
+              _ModuleCard(
+                title: 'Ma galerie',
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AromaColors.galerieGradientStart,
+                    AromaColors.galerieGradientEnd,
+                  ],
+                ),
+                icon: Icons.image_outlined,
+                onTap: onOpenGalerie,
+              ),
+            ],
           ),
         ],
       ),
@@ -130,36 +116,53 @@ class _ModuleCardState extends State<_ModuleCard> {
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        gradient: widget.gradient,
-                      ),
-                      child: Icon(
-                        widget.icon,
-                        size: 48,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      widget.title,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AromaColors.zinc900,
-                            letterSpacing: -0.2,
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  final minSide = c.biggest.shortestSide;
+                  final compact = minSide < 150;
+                  final padding = compact ? 10.0 : 24.0;
+                  final iconBox = compact ? 44.0 : 80.0;
+                  final iconSize = compact ? 24.0 : 46.0;
+                  final gap = compact ? 8.0 : 20.0;
+
+                  return Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: iconBox,
+                          height: iconBox,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            gradient: widget.gradient,
                           ),
+                          child: Icon(
+                            widget.icon,
+                            size: iconSize,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: gap),
+                        Flexible(
+                          child: Text(
+                            widget.title,
+                            textAlign: TextAlign.center,
+                            maxLines: compact ? 1 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AromaColors.zinc900,
+                                  letterSpacing: -0.2,
+                                  fontSize: compact ? 12 : null,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),

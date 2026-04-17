@@ -3,6 +3,8 @@ class GalerieFichier {
     required this.id,
     required this.lienFichier,
     this.nomFichier,
+    this.storageKey,
+    this.dossier,
     this.mimeType,
     this.dateUpload,
     this.createdAt,
@@ -12,6 +14,8 @@ class GalerieFichier {
   final String id;
   final String lienFichier;
   final String? nomFichier;
+  final String? storageKey;
+  final String? dossier;
   final String? mimeType;
   final DateTime? dateUpload;
   final DateTime? createdAt;
@@ -26,13 +30,15 @@ class GalerieFichier {
     }
 
     return GalerieFichier(
-      id: json['id'] as String,
+      id: (json['id'] ?? '').toString(),
       lienFichier: json['lien_fichier'] as String,
       nomFichier: json['nom_fichier'] as String?,
+      storageKey: json['storage_key'] as String?,
+      dossier: json['dossier'] as String?,
       mimeType: json['mime_type'] as String?,
       dateUpload: parseDt(json['date_upload']),
       createdAt: parseDt(json['created_at']),
-      uploadedByUserId: json['uploaded_by_user_id'] as String?,
+      uploadedByUserId: json['uploaded_by_user_id']?.toString(),
     );
   }
 

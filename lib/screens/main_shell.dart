@@ -16,7 +16,6 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
-  final GlobalKey<GalerieScreenState> _galerieKey = GlobalKey<GalerieScreenState>();
 
   Future<void> _logout() async {
     if (!mounted) return;
@@ -71,11 +70,7 @@ class _MainShellState extends State<MainShell> {
               ]
             : null,
       ),
-      child: const Icon(
-        Icons.image_rounded,
-        size: 22,
-        color: Colors.white,
-      ),
+      child: const Icon(Icons.image_rounded, size: 22, color: Colors.white),
     );
   }
 
@@ -85,17 +80,7 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (_index == 1)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Actualiser',
-              onPressed: () => _galerieKey.currentState?.reload(),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(title)),
       drawer: Drawer(
         backgroundColor: AromaColors.surface,
         child: SafeArea(
@@ -105,9 +90,7 @@ class _MainShellState extends State<MainShell> {
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
                 decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Color(0xFFF4F4F5)),
-                  ),
+                  border: Border(bottom: BorderSide(color: Color(0xFFF4F4F5))),
                 ),
                 child: Row(
                   children: [
@@ -117,10 +100,10 @@ class _MainShellState extends State<MainShell> {
                       child: Text(
                         'Aroma JPC',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AromaColors.zinc900,
-                              letterSpacing: -0.3,
-                            ),
+                          fontWeight: FontWeight.w600,
+                          color: AromaColors.zinc900,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                     ),
                   ],
@@ -134,12 +117,16 @@ class _MainShellState extends State<MainShell> {
                       leading: _drawerIconHome(selected: _index == 0),
                       title: const Text('Mon accueil'),
                       selected: _index == 0,
-                      selectedTileColor: AromaColors.zinc100.withValues(alpha: 0.5),
+                      selectedTileColor: AromaColors.zinc100.withValues(
+                        alpha: 0.5,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       onTap: () {
                         setState(() => _index = 0);
                         Navigator.of(context).pop();
@@ -149,12 +136,16 @@ class _MainShellState extends State<MainShell> {
                       leading: _drawerIconGalerie(selected: _index == 1),
                       title: const Text('Ma galerie'),
                       selected: _index == 1,
-                      selectedTileColor: AromaColors.zinc100.withValues(alpha: 0.5),
+                      selectedTileColor: AromaColors.zinc100.withValues(
+                        alpha: 0.5,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       onTap: () {
                         setState(() => _index = 1);
                         Navigator.of(context).pop();
@@ -190,10 +181,7 @@ class _MainShellState extends State<MainShell> {
                 key: const ValueKey('home'),
                 onOpenGalerie: () => setState(() => _index = 1),
               )
-            : GalerieScreen(
-                key: _galerieKey,
-                embedded: true,
-              ),
+            : GalerieScreen(embedded: true),
       ),
     );
   }
