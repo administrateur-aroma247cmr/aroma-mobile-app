@@ -6,6 +6,7 @@ import '../theme/aroma_theme.dart';
 import '../widgets/aroma_logo.dart';
 import 'galerie_screen.dart';
 import 'home_screen.dart';
+import 'ma_validation_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -74,9 +75,54 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  static Widget _drawerIconValidation({required bool selected}) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: selected
+              ? const [Color(0xFF22C55E), Color(0xFF16A34A)]
+              : [
+                  const Color(0xFF22C55E).withValues(alpha: 0.85),
+                  const Color(0xFF16A34A).withValues(alpha: 0.85),
+                ],
+        ),
+      ),
+      child: const Icon(Icons.verified_rounded, size: 22, color: Colors.white),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = _index == 0 ? 'Mon tableau de bord' : 'Ma galerie';
+    final isPrivilegedStaff = context.select<AuthProvider, bool>(
+      (a) => a.isPrivilegedStaff,
+    );
+    final pages = <Widget>[
+      HomeScreen(
+        key: const PageStorageKey<String>('home'),
+        onOpenGalerie: () => setState(() => _index = 1),
+        onOpenValidation: isPrivilegedStaff ? () => setState(() => _index = 2) : null,
+      ),
+      const GalerieScreen(
+        key: PageStorageKey<String>('galerie'),
+        embedded: true,
+      ),
+      if (isPrivilegedStaff)
+        const MaValidationScreen(
+          key: PageStorageKey<String>('validation'),
+          embedded: true,
+        ),
+    ];
+    final safeIndex = _index >= pages.length ? 0 : _index;
+    final title = switch (safeIndex) {
+      0 => 'Mon tableau de bord',
+      1 => 'Ma galerie',
+      _ => 'Ma validation',
+    };
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
@@ -132,6 +178,22 @@ class _MainShellState extends State<MainShell> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    if (isPrivilegedStaff)
+                      ListTile(
+                        leading: _drawerIconValidation(selected: false),
+                        title: const Text('Ma validation'),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          setState(() => _index = 2);
+                        },
+                      ),
                     ListTile(
                       leading: _drawerIconGalerie(selected: _index == 1),
                       title: const Text('Ma galerie'),
@@ -175,18 +237,9 @@ class _MainShellState extends State<MainShell> {
         ),
       ),
       body: IndexedStack(
-        index: _index,
+        index: safeIndex,
         sizing: StackFit.expand,
-        children: [
-          HomeScreen(
-            key: const PageStorageKey<String>('home'),
-            onOpenGalerie: () => setState(() => _index = 1),
-          ),
-          const GalerieScreen(
-            key: PageStorageKey<String>('galerie'),
-            embedded: true,
-          ),
-        ],
+        children: pages,
       ),
     );
   }

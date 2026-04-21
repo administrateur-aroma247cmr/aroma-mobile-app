@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../services/aroma_api.dart';
 import '../services/token_store.dart';
+import '../utils/auth_roles.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({TokenStore? tokenStore})
@@ -28,6 +29,15 @@ class AuthProvider extends ChangeNotifier {
   String? get lastError => _error;
   bool get mustChangePassword => _mustChangePassword;
   Map<String, dynamic>? get me => _me;
+
+  /// Valeur API (`admin`, `ceo`, `collaborateur`, …).
+  String? get role {
+    final r = _me?['role'];
+    return r is String ? r : null;
+  }
+
+  /// Même règle que le menu « Ma validation » du CRM web.
+  bool get isPrivilegedStaff => isPrivilegedStaffRole(role);
 
   void _wireApi() {
     _api = AromaApi(getToken: () => _token);

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
+import '../models/bon_commande.dart';
+import '../models/demande_a_payer.dart';
 import '../models/galerie_fichier.dart';
 
 class ApiException implements Exception {
@@ -22,9 +24,13 @@ class AromaApi {
   final String? Function() getToken;
   final http.Client _client;
 
-  Uri _uri(String path) {
+  Uri _uri(String path, [Map<String, String>? query]) {
     final base = AppConfig.apiBaseUrl;
-    return Uri.parse('$base$path');
+    final u = Uri.parse('$base$path');
+    if (query == null || query.isEmpty) return u;
+    return u.replace(
+      queryParameters: {...u.queryParameters, ...query},
+    );
   }
 
   /// Nom de fichier HTTP sûr (évite chemins / caractères qui cassent le multipart).
@@ -305,6 +311,239 @@ class AromaApi {
         if (e is ApiException) rethrow;
         throw ApiException('Impossible de lire la réponse upload: $e');
       }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<DemandeAPayer>> listDemandesAPayer({
+    String? statut,
+    bool auteurMoi = false,
+    String? origine,
+  }) async {
+    final q = <String, String>{};
+    if (statut != null && statut.trim().isNotEmpty) {
+      q['statut'] = statut.trim();
+    }
+    if (auteurMoi) q['auteur_moi'] = 'true';
+    if (origine != null && origine.trim().isNotEmpty) {
+      q['origine'] = origine.trim();
+    }
+    final res = await _client.get(
+      _uri('/api/caisse/demandes-a-payer', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse demandes à payer invalide.');
+      }
+      final out = <DemandeAPayer>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          out.add(DemandeAPayer.fromJson(Map<String, dynamic>.from(e)));
+        } catch (_) {
+          continue;
+        }
+      }
+      return out;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<DemandeAPayer> patchDemandeAPayer(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/caisse/demandes-a-payer/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return DemandeAPayer.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  /// Upload pièces jointes (retour caisse, etc.) — champ `files`, comme le CRM web.
+  Future<List<Map<String, dynamic>>> uploadDemandesAPayerJustificatifs(
+    List<String> filePaths,
+  ) async {
+    if (filePaths.isEmpty) return [];
+    final uri = _uri('/api/caisse/demandes-a-payer/justificatifs');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers());
+    for (final path in filePaths) {
+      final safeName = _multipartFilename(null, path);
+      try {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'files',
+            path,
+            filename: safeName,
+          ),
+        );
+      } catch (e) {
+        throw ApiException('Impossible de lire le fichier pour envoi: $e');
+      }
+    }
+    final streamed = await _client.send(request);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse justificatifs invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<BonCommandeFournisseurLite>> listBonsCommandeFournisseur() async {
+    final res = await _client.get(
+      _uri('/api/bons-commande/fournisseur'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse bons fournisseur invalide.');
+      }
+      final out = <BonCommandeFournisseurLite>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          out.add(
+            BonCommandeFournisseurLite.fromJson(Map<String, dynamic>.from(e)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+      return out;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<BonCommandeFournisseurLite> patchBonCommandeFournisseur(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/bons-commande/fournisseur/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return BonCommandeFournisseurLite.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<BonCommandeInterneLite>> listBonsCommandeInterne() async {
+    final res = await _client.get(
+      _uri('/api/bons-commande/interne'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse bons internes invalide.');
+      }
+      final out = <BonCommandeInterneLite>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          out.add(
+            BonCommandeInterneLite.fromJson(Map<String, dynamic>.from(e)),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+      return out;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<BonCommandeInterneLite> patchBonCommandeInterne(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/bons-commande/interne/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return BonCommandeInterneLite.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> listCollaborateurs() async {
+    final res = await _client.get(
+      _uri('/api/collaborateurs'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse collaborateurs invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> listDemandesRh() async {
+    final res = await _client.get(
+      _uri('/api/demandes'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse demandes RH invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> listDisciplinesRh() async {
+    final res = await _client.get(
+      _uri('/api/discipline'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse disciplines RH invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
     throw _errorFromResponse(res);
   }

@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../widgets/aroma_logo.dart';
 
 /// Accueil type grille de modules (même esprit que le CRM web).
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.onOpenGalerie});
+  const HomeScreen({
+    super.key,
+    required this.onOpenGalerie,
+    this.onOpenValidation,
+  });
 
   final VoidCallback onOpenGalerie;
+  final VoidCallback? onOpenValidation;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +56,20 @@ class HomeScreen extends StatelessWidget {
             mainAxisSpacing: 20,
             childAspectRatio: 0.92,
             children: [
+              if (context.select<AuthProvider, bool>((a) => a.isPrivilegedStaff))
+                _ModuleCard(
+                  title: 'Ma validation',
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF22C55E),
+                      Color(0xFF16A34A),
+                    ],
+                  ),
+                  icon: Icons.verified_rounded,
+                  onTap: onOpenValidation ?? () {},
+                ),
               _ModuleCard(
                 title: 'Ma galerie',
                 gradient: const LinearGradient(
