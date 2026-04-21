@@ -27,6 +27,36 @@ class AromaApi {
     return Uri.parse('$base$path');
   }
 
+  /// Nom de fichier HTTP sûr (évite chemins / caractères qui cassent le multipart).
+  String? _multipartFilename(String? customName, String sourcePath) {
+    String basename(String p) {
+      final n = p.replaceAll('\\', '/');
+      final i = n.lastIndexOf('/');
+      return i >= 0 ? n.substring(i + 1) : n;
+    }
+
+    var name = (customName ?? '').trim();
+    if (name.isEmpty) return null;
+    name = name.replaceAll('\\', '/');
+    if (name.contains('/')) {
+      name = basename(name);
+    }
+    name = basename(name);
+    if (name.isEmpty) return null;
+    // Retire caractères problématiques pour Content-Disposition / stockage.
+    name = name.replaceAll(RegExp(r'[\r\n\t\x00-\x1f"]'), '_');
+    if (name.length > 200) name = name.substring(0, 200);
+    return name.isEmpty ? null : name;
+  }
+
+  GalerieFichier _galerieItemFromMap(Map<String, dynamic> map) {
+    final lien = map['lien_fichier'];
+    if (lien is String && lien.trim().isNotEmpty) {
+      map['lien_fichier'] = _toAbsoluteMediaUrl(lien);
+    }
+    return GalerieFichier.fromJson(map);
+  }
+
   String _toAbsoluteMediaUrl(String raw) {
     final value = raw.trim();
     if (value.isEmpty) return value;
@@ -132,17 +162,25 @@ class AromaApi {
   Future<List<GalerieFichier>> listGalerie() async {
     final res = await _client.get(_uri('/api/galerie'), headers: _headers());
     if (res.statusCode == 200) {
-      final list = jsonDecode(res.body) as List<dynamic>;
-      return list
-          .map((e) {
-            final map = Map<String, dynamic>.from(e as Map<String, dynamic>);
-            final lien = map['lien_fichier'];
-            if (lien is String && lien.trim().isNotEmpty) {
-              map['lien_fichier'] = _toAbsoluteMediaUrl(lien);
-            }
-            return GalerieFichier.fromJson(map);
-          })
-          .toList();
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is! List<dynamic>) {
+          throw ApiException('Réponse galerie invalide (pas une liste).');
+        }
+        final out = <GalerieFichier>[];
+        for (final e in decoded) {
+          if (e is! Map) continue;
+          try {
+            out.add(_galerieItemFromMap(Map<String, dynamic>.from(e)));
+          } catch (_) {
+            continue;
+          }
+        }
+        return out;
+      } catch (e) {
+        if (e is ApiException) rethrow;
+        throw ApiException('Impossible de lire la liste galerie: $e');
+      }
     }
     throw _errorFromResponse(res);
   }
@@ -232,30 +270,41 @@ class AromaApi {
     }
     for (final path in filePaths) {
       final customName = fileNamesByPath?[path]?.trim();
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'files',
-          path,
-          filename: (customName != null && customName.isNotEmpty)
-              ? customName
-              : null,
-        ),
-      );
+      final safeName = _multipartFilename(customName, path);
+      try {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'files',
+            path,
+            filename: safeName,
+          ),
+        );
+      } catch (e) {
+        throw ApiException('Impossible de lire le fichier pour envoi: $e');
+      }
     }
     final streamed = await _client.send(request);
     final res = await http.Response.fromStream(streamed);
     if (res.statusCode == 201) {
-      final list = jsonDecode(res.body) as List<dynamic>;
-      return list
-          .map((e) {
-            final map = Map<String, dynamic>.from(e as Map<String, dynamic>);
-            final lien = map['lien_fichier'];
-            if (lien is String && lien.trim().isNotEmpty) {
-              map['lien_fichier'] = _toAbsoluteMediaUrl(lien);
-            }
-            return GalerieFichier.fromJson(map);
-          })
-          .toList();
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is! List<dynamic>) {
+          throw ApiException('Réponse upload invalide (pas une liste).');
+        }
+        final out = <GalerieFichier>[];
+        for (final e in decoded) {
+          if (e is! Map) continue;
+          try {
+            out.add(_galerieItemFromMap(Map<String, dynamic>.from(e)));
+          } catch (_) {
+            continue;
+          }
+        }
+        return out;
+      } catch (e) {
+        if (e is ApiException) rethrow;
+        throw ApiException('Impossible de lire la réponse upload: $e');
+      }
     }
     throw _errorFromResponse(res);
   }

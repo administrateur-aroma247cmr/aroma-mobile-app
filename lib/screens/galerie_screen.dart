@@ -313,18 +313,26 @@ class GalerieScreenState extends State<GalerieScreen> {
     final validPaths = <String>[];
     final rejected = <String>[];
     for (final p in paths) {
-      final ext = _extensionOf(p);
-      if (!_allowedExtensions.contains(ext)) {
-        rejected.add('${_fileNameOf(p)} (type non autorise)');
-        continue;
+      try {
+        final ext = _extensionOf(p);
+        if (!_allowedExtensions.contains(ext)) {
+          rejected.add('${_fileNameOf(p)} (type non autorise)');
+          continue;
+        }
+        final file = File(p);
+        if (!await file.exists()) {
+          rejected.add('${_fileNameOf(p)} (introuvable)');
+          continue;
+        }
+        final size = await file.length();
+        if (size > _maxFileSizeBytes) {
+          rejected.add('${_fileNameOf(p)} (> 15 Mo)');
+          continue;
+        }
+        validPaths.add(p);
+      } catch (e) {
+        rejected.add('${_fileNameOf(p)} ($e)');
       }
-      final file = File(p);
-      final size = await file.length();
-      if (size > _maxFileSizeBytes) {
-        rejected.add('${_fileNameOf(p)} (> 15 Mo)');
-        continue;
-      }
-      validPaths.add(p);
     }
 
     if (rejected.isNotEmpty && mounted) {

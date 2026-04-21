@@ -174,14 +174,19 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        child: _index == 0
-            ? HomeScreen(
-                key: const ValueKey('home'),
-                onOpenGalerie: () => setState(() => _index = 1),
-              )
-            : GalerieScreen(embedded: true),
+      body: IndexedStack(
+        index: _index,
+        sizing: StackFit.expand,
+        children: [
+          HomeScreen(
+            key: const PageStorageKey<String>('home'),
+            onOpenGalerie: () => setState(() => _index = 1),
+          ),
+          const GalerieScreen(
+            key: PageStorageKey<String>('galerie'),
+            embedded: true,
+          ),
+        ],
       ),
     );
   }

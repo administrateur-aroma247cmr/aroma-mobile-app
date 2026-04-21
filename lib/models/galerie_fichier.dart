@@ -29,13 +29,25 @@ class GalerieFichier {
       return null;
     }
 
+    String? asTrimmedString(dynamic v) {
+      if (v == null) return null;
+      if (v is String) return v.trim().isEmpty ? null : v.trim();
+      final s = v.toString().trim();
+      return s.isEmpty ? null : s;
+    }
+
+    final lienRaw = json['lien_fichier'];
+    final lien = lienRaw is String
+        ? lienRaw.trim()
+        : (asTrimmedString(lienRaw) ?? '');
+
     return GalerieFichier(
       id: (json['id'] ?? '').toString(),
-      lienFichier: json['lien_fichier'] as String,
-      nomFichier: json['nom_fichier'] as String?,
-      storageKey: json['storage_key'] as String?,
-      dossier: json['dossier'] as String?,
-      mimeType: json['mime_type'] as String?,
+      lienFichier: lien,
+      nomFichier: asTrimmedString(json['nom_fichier']),
+      storageKey: asTrimmedString(json['storage_key']),
+      dossier: asTrimmedString(json['dossier']),
+      mimeType: asTrimmedString(json['mime_type']),
       dateUpload: parseDt(json['date_upload']),
       createdAt: parseDt(json['created_at']),
       uploadedByUserId: json['uploaded_by_user_id']?.toString(),
