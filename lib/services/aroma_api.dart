@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 import '../models/bon_commande.dart';
 import '../models/demande_a_payer.dart';
 import '../models/galerie_fichier.dart';
+import '../models/galerie_folder.dart';
 
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
@@ -195,40 +196,53 @@ class AromaApi {
     return uploadGalerieToFolder(filePaths, folder: null);
   }
 
-  Future<List<String>> listGalerieFolders() async {
+  Future<List<GalerieFolderRef>> listGalerieFolders() async {
     final res = await _client.get(
       _uri('/api/galerie/folders'),
       headers: _headers(),
     );
     if (res.statusCode == 200) {
       final list = jsonDecode(res.body) as List<dynamic>;
-      final folders = <String>{};
+      final byPath = <String, GalerieFolderRef>{};
       for (final entry in list) {
         if (entry is String) {
           final value = entry.trim();
-          if (value.isNotEmpty) folders.add(value);
+          if (value.isNotEmpty) {
+            byPath[value] = GalerieFolderRef(path: value);
+          }
           continue;
         }
-        if (entry is Map<String, dynamic>) {
+        if (entry is Map) {
+          final m = Map<String, dynamic>.from(entry);
           final raw =
-              entry['folder'] ??
-              entry['dossier'] ??
-              entry['path'] ??
-              entry['name'];
-          if (raw is String) {
-            final value = raw.trim();
-            if (value.isNotEmpty) folders.add(value);
+              m['folder'] ??
+              m['dossier'] ??
+              m['path'] ??
+              m['name'];
+          if (raw is! String || raw.trim().isEmpty) continue;
+          final path = raw.trim();
+          final idRaw =
+              m['id'] ?? m['folder_id'] ?? m['folderId'] ?? m['uuid'];
+          String? id;
+          if (idRaw != null) {
+            final s = idRaw.toString().trim();
+            if (s.isNotEmpty) id = s;
           }
+          final prev = byPath[path];
+          byPath[path] = GalerieFolderRef(
+            path: path,
+            id: id ?? prev?.id,
+          );
         }
       }
-      final out = folders.toList()
-        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      final out = byPath.values.toList()
+        ..sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
       return out;
     }
     throw _errorFromResponse(res);
   }
 
-  Future<String> createGalerieFolder(String folder) async {
+  Future<GalerieFolderRef> createGalerieFolder(String folder) async {
     final res = await _client.post(
       _uri('/api/galerie/folders'),
       headers: _headers(jsonBody: true),
@@ -237,7 +251,15 @@ class AromaApi {
     if (res.statusCode == 201) {
       final m = jsonDecode(res.body) as Map<String, dynamic>;
       final out = m['folder'];
-      if (out is String && out.isNotEmpty) return out;
+      if (out is String && out.isNotEmpty) {
+        final idRaw = m['id'] ?? m['folder_id'] ?? m['folderId'];
+        String? id;
+        if (idRaw != null) {
+          final s = idRaw.toString().trim();
+          if (s.isNotEmpty) id = s;
+        }
+        return GalerieFolderRef(path: out, id: id);
+      }
     }
     throw _errorFromResponse(res);
   }
@@ -256,6 +278,43 @@ class AromaApi {
       final out = m['folder'];
       if (out is String && out.isNotEmpty) return out;
     }
+    throw _errorFromResponse(res);
+  }
+
+  /// Supprime un fichier de la galerie ([DELETE /api/galerie/{id}], 204).
+  Future<void> deleteGalerieItem(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) {
+      throw ApiException('Identifiant invalide.');
+    }
+    final res = await _client.delete(
+      _uri('/api/galerie/${Uri.encodeComponent(trimmed)}'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 204) return;
+    throw _errorFromResponse(res);
+  }
+
+  /// Supprime un dossier ([DELETE /api/galerie/folders], 204).
+  /// Quand l’API expose un identifiant de dossier, utiliser [folderId] (UUID) ;
+  /// sinon le chemin [folderPath] est envoyé comme avant.
+  Future<void> deleteGalerieFolder({
+    required String folderPath,
+    String? folderId,
+  }) async {
+    final trimmedPath = folderPath.trim();
+    if (trimmedPath.isEmpty) {
+      throw ApiException('Dossier invalide.');
+    }
+    final id = folderId?.trim();
+    final query = (id != null && id.isNotEmpty)
+        ? <String, String>{'folder_id': id}
+        : <String, String>{'folder': trimmedPath};
+    final res = await _client.delete(
+      _uri('/api/galerie/folders', query),
+      headers: _headers(),
+    );
+    if (res.statusCode == 204) return;
     throw _errorFromResponse(res);
   }
 

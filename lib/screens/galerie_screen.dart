@@ -10,6 +10,15 @@ import '../providers/auth_provider.dart';
 import '../services/aroma_api.dart';
 import '../theme/aroma_theme.dart';
 
+/// Aligné sur le CRM web (rôle privilégié ou auteur de l’upload).
+bool _galerieFileCanDelete(AuthProvider auth, GalerieFichier f) {
+  if (auth.isPrivilegedStaff) return true;
+  final myId = auth.me?['id']?.toString();
+  final up = f.uploadedByUserId;
+  if (myId != null && up != null && up == myId) return true;
+  return false;
+}
+
 enum _GallerySort { nameAsc, nameDesc, newest, oldest }
 
 class GalerieScreen extends StatefulWidget {
@@ -39,6 +48,8 @@ class GalerieScreenState extends State<GalerieScreen> {
   bool _uploading = false;
   bool _loadingFolders = false;
   List<String> _folders = const [];
+  /// Clés = chemins normalisés ([_normalizeFolder]), valeurs = UUID dossier (API).
+  final Map<String, String> _folderIdsByPath = {};
   String? _currentFolder;
   _GallerySort _sort = _GallerySort.nameAsc;
 
@@ -63,15 +74,41 @@ class GalerieScreenState extends State<GalerieScreen> {
     final api = context.read<AuthProvider>().api;
     setState(() => _loadingFolders = true);
     try {
-      final folders = await api.listGalerieFolders();
+      final refs = await api.listGalerieFolders();
       if (!mounted) return;
-      final mergedFolders = <String>{
-        ..._folders.expand(_expandFolderAncestors),
-        ...folders.expand(_expandFolderAncestors),
-      }.toList()
+      final folderPaths = refs.map((r) => r.path).toList();
+      final idUpdates = <String, String>{};
+      for (final r in refs) {
+        final n = _normalizeFolder(r.path);
+        if (n.isNotEmpty && r.id != null && r.id!.trim().isNotEmpty) {
+          idUpdates[n] = r.id!.trim();
+        }
+      }
+      // Ne pas réutiliser l’ancien [_folders] : sinon les dossiers supprimés
+      // côté API restent affichés. On reconstruit depuis l’API + les chemins
+      // encore présents dans les fichiers de la galerie.
+      final fromApi = folderPaths.expand(_expandFolderAncestors).toSet();
+      final fromFiles = <String>{};
+      try {
+        final items = await _future;
+        if (items != null) {
+          for (final item in items) {
+            final value = item.dossier?.trim();
+            if (value != null && value.isNotEmpty) {
+              fromFiles.addAll(_expandFolderAncestors(value));
+            }
+          }
+        }
+      } catch (_) {
+        // Liste galerie indisponible : on garde uniquement l’API.
+      }
+      final mergedSet = {...fromApi, ...fromFiles};
+      final mergedFolders = mergedSet.toList()
         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
       setState(() {
         _folders = mergedFolders;
+        _folderIdsByPath.removeWhere((k, _) => !mergedSet.contains(k));
+        _folderIdsByPath.addAll(idUpdates);
         if (_currentFolder != null && !_folders.contains(_currentFolder)) {
           _currentFolder = null;
         }
@@ -83,6 +120,94 @@ class GalerieScreenState extends State<GalerieScreen> {
       );
     } finally {
       if (mounted) setState(() => _loadingFolders = false);
+    }
+  }
+
+  Future<void> _confirmDeleteFile(GalerieFichier f) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer ce fichier ?'),
+        content: Text(
+          f.nomFichier != null && f.nomFichier!.trim().isNotEmpty
+              ? '« ${f.nomFichier} » sera supprimé définitivement.'
+              : 'Ce document sera supprimé définitivement.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final api = context.read<AuthProvider>().api;
+    try {
+      await api.deleteGalerieItem(f.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Document supprimé.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteFolder(String folderPath) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer le dossier ?'),
+        content: Text(
+          'Le dossier « ${_folderDisplayName(folderPath)} » et tout son contenu '
+          'seront supprimés définitivement.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final api = context.read<AuthProvider>().api;
+    try {
+      final norm = _normalizeFolder(folderPath);
+      await api.deleteGalerieFolder(
+        folderPath: folderPath,
+        folderId: _folderIdsByPath[norm],
+      );
+      if (!mounted) return;
+      final normalizedCurrent = _normalizeFolder(_currentFolder);
+      final normalizedDeleted = _normalizeFolder(folderPath);
+      if (normalizedCurrent.isNotEmpty &&
+          (normalizedCurrent == normalizedDeleted ||
+              normalizedCurrent.startsWith('$normalizedDeleted/'))) {
+        setState(() => _currentFolder = _parentFolderOf(folderPath));
+      }
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dossier supprimé.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     }
   }
 
@@ -394,16 +519,23 @@ class GalerieScreenState extends State<GalerieScreen> {
       if (!mounted) return null;
       await _reloadFolders();
       if (!mounted) return null;
-      if (!_folders.contains(created)) {
+      final createdPath = created.path;
+      final createdNorm = _normalizeFolder(createdPath);
+      if (created.id != null && createdNorm.isNotEmpty) {
         setState(() {
-          _folders = <String>{..._folders, created}.toList()
+          _folderIdsByPath[createdNorm] = created.id!.trim();
+        });
+      }
+      if (!_folders.contains(createdPath)) {
+        setState(() {
+          _folders = <String>{..._folders, createdPath}.toList()
             ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
         });
       }
       ScaffoldMessenger.of(
         this.context,
-      ).showSnackBar(SnackBar(content: Text('Dossier cree: $created')));
-      return created;
+      ).showSnackBar(SnackBar(content: Text('Dossier cree: $createdPath')));
+      return createdPath;
     } on ApiException catch (e) {
       if (!mounted) return null;
       ScaffoldMessenger.of(
@@ -728,6 +860,7 @@ class GalerieScreenState extends State<GalerieScreen> {
                 if (_loadingFolders && items.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                final auth = context.read<AuthProvider>();
                 final visibleFiles = _filesInCurrentFolder(items);
                 final childFolders = _directChildFolders(_folders, _currentFolder);
                 final atRoot = _normalizeFolder(_currentFolder).isEmpty;
@@ -883,12 +1016,17 @@ class GalerieScreenState extends State<GalerieScreen> {
                                               () => _currentFolder = folder,
                                             );
                                           },
+                                          onDelete: () =>
+                                              _confirmDeleteFolder(folder),
                                         );
                                       }
                                       final g = visibleFiles[i - childFolders.length];
                                       return _GalerieTile(
                                         fichier: g,
                                         imageHeaders: imageHeaders,
+                                        canDelete: _galerieFileCanDelete(auth, g),
+                                        onDeleteRequested: () =>
+                                            _confirmDeleteFile(g),
                                       );
                                     },
                                   ),
@@ -929,10 +1067,17 @@ class GalerieScreenState extends State<GalerieScreen> {
 }
 
 class _GalerieTile extends StatelessWidget {
-  const _GalerieTile({required this.fichier, this.imageHeaders});
+  const _GalerieTile({
+    required this.fichier,
+    this.imageHeaders,
+    this.canDelete = false,
+    this.onDeleteRequested,
+  });
 
   final GalerieFichier fichier;
   final Map<String, String>? imageHeaders;
+  final bool canDelete;
+  final VoidCallback? onDeleteRequested;
 
   bool get _isImage {
     final mime = (fichier.mimeType ?? '').toLowerCase();
@@ -978,6 +1123,20 @@ class _GalerieTile extends StatelessWidget {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
+                          if (canDelete && onDeleteRequested != null)
+                            IconButton(
+                              tooltip: 'Supprimer',
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  onDeleteRequested!();
+                                });
+                              },
+                              icon: Icon(
+                                Icons.delete_outline,
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
                           IconButton(
                             onPressed: () => Navigator.pop(ctx),
                             icon: const Icon(Icons.close),
@@ -1141,47 +1300,84 @@ class _FolderChoiceTile extends StatelessWidget {
 }
 
 class _FolderGridTile extends StatelessWidget {
-  const _FolderGridTile({required this.folder, required this.onTap});
+  const _FolderGridTile({
+    required this.folder,
+    required this.onTap,
+    this.onDelete,
+  });
 
   final String folder;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final name = folder.split('/').last;
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: ColoredBox(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.folder_rounded,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.primary,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          InkWell(
+            onTap: onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ColoredBox(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.folder_rounded,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onDelete != null)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Material(
+                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Icons.more_vert,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  onSelected: (value) {
+                    if (value == 'delete') onDelete!();
+                  },
+                  itemBuilder: (ctx) => const [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Supprimer le dossier'),
                     ),
                   ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
