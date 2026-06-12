@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../widgets/aroma_logo.dart';
+import '../widgets/entity_scope_selector.dart';
 import 'galerie_screen.dart';
 import 'home_screen.dart';
 import 'ma_validation_screen.dart';
@@ -98,22 +99,22 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isPrivilegedStaff = context.select<AuthProvider, bool>(
-      (a) => a.isPrivilegedStaff,
-    );
+    final auth = context.watch<AuthProvider>();
+    final isPrivilegedStaff = auth.isPrivilegedStaff;
+    final entityCode = auth.currentEntityCode;
     final pages = <Widget>[
       HomeScreen(
         key: const PageStorageKey<String>('home'),
         onOpenGalerie: () => setState(() => _index = 1),
         onOpenValidation: isPrivilegedStaff ? () => setState(() => _index = 2) : null,
       ),
-      const GalerieScreen(
-        key: PageStorageKey<String>('galerie'),
+      GalerieScreen(
+        key: ValueKey('galerie-$entityCode'),
         embedded: true,
       ),
       if (isPrivilegedStaff)
-        const MaValidationScreen(
-          key: PageStorageKey<String>('validation'),
+        MaValidationScreen(
+          key: ValueKey('validation-$entityCode'),
           embedded: true,
         ),
     ];
@@ -126,7 +127,10 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        title: Text(title),
+        actions: const [EntityScopeAppBarAction()],
+      ),
       drawer: Drawer(
         backgroundColor: AromaColors.surface,
         child: SafeArea(
@@ -155,6 +159,8 @@ class _MainShellState extends State<MainShell> {
                   ],
                 ),
               ),
+              if (auth.showEntitySelector)
+                const EntityScopeSelector(),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),

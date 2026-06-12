@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../screens/caisse_screen.dart';
+import '../screens/kpi_screen.dart';
+import '../screens/recouvrement_screen.dart';
+import '../screens/rh_hub_screen.dart';
+import '../screens/tasks_screen.dart';
 import '../theme/aroma_theme.dart';
 import '../widgets/aroma_logo.dart';
 
@@ -16,8 +21,15 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onOpenGalerie;
   final VoidCallback? onOpenValidation;
 
+  void _openModule(BuildContext context, Widget screen) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => screen),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
       fontWeight: FontWeight.w600,
       color: AromaColors.zinc800,
@@ -26,6 +38,89 @@ class HomeScreen extends StatelessWidget {
     final subtitleStyle = Theme.of(
       context,
     ).textTheme.bodyMedium?.copyWith(color: AromaColors.zinc500);
+
+    final modules = <_HomeModule>[
+      if (auth.canShowHomeModule('analytics'))
+        _HomeModule(
+          title: 'Analytics KPI',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF7C3AED), Color(0xFFC026D3)],
+          ),
+          icon: Icons.bar_chart_rounded,
+          onTap: () => _openModule(context, const KpiScreen()),
+        ),
+      if (auth.canShowHomeModule('tasks'))
+        _HomeModule(
+          title: 'Mes tâches',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF8B5CF6), Color(0xFF4F46E5)],
+          ),
+          icon: Icons.check_box_outlined,
+          onTap: () => _openModule(context, const TasksScreen()),
+        ),
+      if (auth.canShowHomeModule('rh'))
+        _HomeModule(
+          title: 'Mon espace RH',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+          ),
+          icon: Icons.groups_outlined,
+          onTap: () => _openModule(context, const RhHubScreen()),
+        ),
+      if (auth.canShowHomeModule('recouvrement'))
+        _HomeModule(
+          title: 'Recouvrement',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0D9488), Color(0xFF0891B2)],
+          ),
+          icon: Icons.savings_outlined,
+          onTap: () => _openModule(context, const RecouvrementScreen()),
+        ),
+      if (auth.canShowHomeModule('caisse'))
+        _HomeModule(
+          title: 'Caisse',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF97316), Color(0xFFD97706)],
+          ),
+          icon: Icons.account_balance_wallet_outlined,
+          onTap: () => _openModule(context, const CaisseScreen()),
+        ),
+      if (auth.canShowHomeModule('validation'))
+        _HomeModule(
+          title: 'Ma validation',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+          ),
+          icon: Icons.verified_rounded,
+          onTap: onOpenValidation ?? () {},
+        ),
+      if (auth.canShowHomeModule('galerie'))
+        _HomeModule(
+          title: 'Ma galerie',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AromaColors.galerieGradientStart,
+              AromaColors.galerieGradientEnd,
+            ],
+          ),
+          icon: Icons.image_outlined,
+          onTap: onOpenGalerie,
+        ),
+    ];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
@@ -55,40 +150,35 @@ class HomeScreen extends StatelessWidget {
             crossAxisSpacing: 20,
             mainAxisSpacing: 20,
             childAspectRatio: 0.92,
-            children: [
-              if (context.select<AuthProvider, bool>((a) => a.isPrivilegedStaff))
-                _ModuleCard(
-                  title: 'Ma validation',
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF22C55E),
-                      Color(0xFF16A34A),
-                    ],
+            children: modules
+                .map(
+                  (m) => _ModuleCard(
+                    title: m.title,
+                    gradient: m.gradient,
+                    icon: m.icon,
+                    onTap: m.onTap,
                   ),
-                  icon: Icons.verified_rounded,
-                  onTap: onOpenValidation ?? () {},
-                ),
-              _ModuleCard(
-                title: 'Ma galerie',
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AromaColors.galerieGradientStart,
-                    AromaColors.galerieGradientEnd,
-                  ],
-                ),
-                icon: Icons.image_outlined,
-                onTap: onOpenGalerie,
-              ),
-            ],
+                )
+                .toList(),
           ),
         ],
       ),
     );
   }
+}
+
+class _HomeModule {
+  const _HomeModule({
+    required this.title,
+    required this.gradient,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final Gradient gradient;
+  final IconData icon;
+  final VoidCallback onTap;
 }
 
 class _ModuleCard extends StatefulWidget {

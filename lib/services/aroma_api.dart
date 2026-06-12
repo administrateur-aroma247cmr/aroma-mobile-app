@@ -3,10 +3,20 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
+import '../models/analytics.dart';
 import '../models/bon_commande.dart';
+import '../models/business_entity.dart';
+import '../models/caisse_metrics.dart';
+import '../models/collaborateur.dart';
 import '../models/demande_a_payer.dart';
+import '../models/demande_rh.dart';
+import '../models/recouvrement.dart';
 import '../models/galerie_fichier.dart';
 import '../models/galerie_folder.dart';
+import '../models/rh_dashboard.dart';
+import '../models/tache.dart';
+
+import '../utils/entity_scope.dart';
 
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
@@ -19,10 +29,14 @@ class ApiException implements Exception {
 }
 
 class AromaApi {
-  AromaApi({required this.getToken, http.Client? client})
-    : _client = client ?? http.Client();
+  AromaApi({
+    required this.getToken,
+    this.getEntityCode,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
 
   final String? Function() getToken;
+  final String? Function()? getEntityCode;
   final http.Client _client;
 
   Uri _uri(String path, [Map<String, String>? query]) {
@@ -91,6 +105,10 @@ class AromaApi {
       final t = getToken();
       if (t != null && t.isNotEmpty) {
         h['Authorization'] = 'Bearer $t';
+      }
+      final entity = getEntityCode?.call();
+      if (entity != null && entity.trim().isNotEmpty) {
+        h[entityHeader] = normalizeEntityCode(entity);
       }
     }
     return h;
@@ -162,6 +180,28 @@ class AromaApi {
     final res = await _client.get(_uri('/auth/me'), headers: _headers());
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<BusinessEntity>> listBusinessEntities() async {
+    final res = await _client.get(_uri('/api/entities'), headers: _headers());
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse entités invalide.');
+      }
+      final out = <BusinessEntity>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          out.add(BusinessEntity.fromJson(Map<String, dynamic>.from(e)));
+        } catch (_) {
+          continue;
+        }
+      }
+      out.sort((a, b) => a.code.compareTo(b.code));
+      return out;
     }
     throw _errorFromResponse(res);
   }
@@ -571,7 +611,7 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
-  Future<List<Map<String, dynamic>>> listDemandesRh() async {
+  Future<List<DemandeRh>> listDemandesRh() async {
     final res = await _client.get(
       _uri('/api/demandes'),
       headers: _headers(),
@@ -581,10 +621,173 @@ class AromaApi {
       if (decoded is! List<dynamic>) {
         throw ApiException('Réponse demandes RH invalide.');
       }
+      final out = <DemandeRh>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          out.add(DemandeRh.fromJson(Map<String, dynamic>.from(e)));
+        } catch (_) {
+          continue;
+        }
+      }
+      return out;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<DemandeRh> createDemandeRh(Map<String, dynamic> body) async {
+    final res = await _client.post(
+      _uri('/api/demandes'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return DemandeRh.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> uploadDemandeRhDocuments(
+    List<String> filePaths,
+  ) async {
+    if (filePaths.isEmpty) return [];
+    final uri = _uri('/api/demandes/documents');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers());
+    for (final path in filePaths) {
+      final safeName = _multipartFilename(null, path);
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'files',
+          path,
+          filename: safeName,
+        ),
+      );
+    }
+    final streamed = await _client.send(request);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse documents demande invalide.');
+      }
       return decoded
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Collaborateur> getCollaborateur(String id) async {
+    final res = await _client.get(
+      _uri('/api/collaborateurs/${Uri.encodeComponent(id)}'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return Collaborateur.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<RecouvrementPage> getRecouvrementPage() async {
+    final res = await _client.get(
+      _uri('/api/recouvrements'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return RecouvrementPage.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<RecapComptable?> getComptabiliteRecap() async {
+    final res = await _client.get(
+      _uri('/api/comptabilite/recap'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 403) return null;
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return RecapComptable.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  /// Agrège recouvrement + analytics + recap compta (si autorisé).
+  Future<RecouvrementKpiBundle> getRecouvrementKpiBundle() async {
+    final page = await getRecouvrementPage();
+    final analytics = await getAnalyticsGlobal('mois');
+    RecapComptable? recap;
+    try {
+      recap = await getComptabiliteRecap();
+    } catch (_) {}
+
+    final recouvRaw = await _getJsonMap(
+      '/api/analytics/global',
+      query: {'periode': 'mois'},
+    );
+    final recouvBlock = recouvRaw['recouvrement'];
+    final recouvMap = recouvBlock is Map
+        ? Map<String, dynamic>.from(recouvBlock)
+        : <String, dynamic>{};
+
+    double montantRecouvre = 0;
+    final controle = recouvRaw['controle'];
+    if (controle is Map) {
+      final section = controle['comptabilite_recouvrement'];
+      if (section is Map) {
+        final metrics = section['metrics'];
+        if (metrics is List) {
+          for (final m in metrics) {
+            if (m is! Map) continue;
+            if (m['label'] == 'Montant recouvré') {
+              montantRecouvre = (m['realise'] as num?)?.toDouble() ?? 0;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return RecouvrementKpiBundle(
+      page: page,
+      montantEncours: (recouvMap['montant_encours'] as num?)?.toDouble() ??
+          page.montantSolde,
+      nbFacturesRetard:
+          (recouvMap['nb_factures_retard'] as num?)?.toInt() ??
+          page.facturesRetard.length,
+      nbFacturesAttendu:
+          (recouvMap['nb_factures_attendu'] as num?)?.toInt() ??
+          page.facturesAttendu.length,
+      nbRelancesTotal:
+          (recouvMap['nb_relances_total'] as num?)?.toInt() ?? 0,
+      montantRecouvreMois: montantRecouvre,
+      recetteMois: recap?.recetteMois ?? analytics.comptabilite.montantTotalFcfa,
+      depenseMois: recap?.depenseMois ?? analytics.comptabilite.demandesMontant,
+      demandesMontantMois: analytics.comptabilite.demandesMontant,
+    );
+  }
+
+  Future<Map<String, dynamic>> _getJsonMap(
+    String path, {
+    Map<String, String>? query,
+  }) async {
+    final res = await _client.get(_uri(path, query), headers: _headers());
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) return m;
     }
     throw _errorFromResponse(res);
   }
@@ -603,6 +806,130 @@ class AromaApi {
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Tache>> listTaches() async {
+    final res = await _client.get(_uri('/api/taches'), headers: _headers());
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse tâches invalide.');
+      }
+      final out = <Tache>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          out.add(Tache.fromJson(Map<String, dynamic>.from(e)));
+        } catch (_) {
+          continue;
+        }
+      }
+      return out;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Tache> patchTache(String id, Map<String, dynamic> body) async {
+    final res = await _client.patch(
+      _uri('/api/taches/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return Tache.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<CollaborateurLite>> listCollaborateursLite() async {
+    final raw = await listCollaborateurs();
+    return raw.map(CollaborateurLite.fromJson).toList();
+  }
+
+  Future<RhDashboardMois> getRhDashboardMois(
+    String collaborateurId, {
+    String? mois,
+  }) async {
+    final q = mois != null && mois.isNotEmpty
+        ? <String, String>{'mois': mois}
+        : null;
+    final res = await _client.get(
+      _uri('/api/rh/dashboard-mois/${Uri.encodeComponent(collaborateurId)}', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return RhDashboardMois.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<RhHistoriqueArrivee> getRhHistoriqueDepuisArrivee(
+    String collaborateurId,
+  ) async {
+    final res = await _client.get(
+      _uri(
+        '/api/rh/historique-depuis-arrivee/${Uri.encodeComponent(collaborateurId)}',
+      ),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return RhHistoriqueArrivee.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<CaisseMetrics> getCaisseMetrics() async {
+    final res = await _client.get(
+      _uri('/api/caisse/metrics'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return CaisseMetrics.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<MaCaisseAccess> getMaCaisseAccess({String? dateJour}) async {
+    final q = dateJour != null && dateJour.isNotEmpty
+        ? <String, String>{'date_jour': dateJour}
+        : null;
+    final res = await _client.get(
+      _uri('/api/caisse/ma-caisse-access', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return MaCaisseAccess.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<AnalyticsGlobalDashboard> getAnalyticsGlobal(String periode) async {
+    final res = await _client.get(
+      _uri('/api/analytics/global', {'periode': periode}),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return AnalyticsGlobalDashboard.fromJson(m);
+      }
     }
     throw _errorFromResponse(res);
   }
