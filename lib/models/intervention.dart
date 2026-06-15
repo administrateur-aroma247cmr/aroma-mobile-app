@@ -99,6 +99,9 @@ class ExperienceAdc {
     this.ressenti,
     this.commentaire,
     this.interventionRef,
+    this.interventionDate,
+    this.idContact,
+    this.actionsTrace = const [],
   });
 
   final String id;
@@ -110,6 +113,9 @@ class ExperienceAdc {
   final String? ressenti;
   final String? commentaire;
   final String? interventionRef;
+  final String? interventionDate;
+  final String? idContact;
+  final List<AdcActionTrace> actionsTrace;
 
   String get titreAffiche {
     final c = (clientName ?? '').trim();
@@ -131,6 +137,166 @@ class ExperienceAdc {
       ressenti: _str(m['ressenti']),
       commentaire: _str(m['commentaire']),
       interventionRef: _str(m['intervention_ref']),
+      interventionDate: _str(m['intervention_date']),
+      idContact: m['id_contact']?.toString(),
+      actionsTrace: _parseAdcActionTrace(m['actions_trace']),
+    );
+  }
+}
+
+class AdcContact {
+  AdcContact({
+    required this.id,
+    this.nom,
+    this.prenom,
+    this.poste,
+    this.telephone,
+    this.email,
+    this.typeContact,
+  });
+
+  final String id;
+  final String? nom;
+  final String? prenom;
+  final String? poste;
+  final String? telephone;
+  final String? email;
+  final String? typeContact;
+
+  String get nomAffiche {
+    final parts = [(prenom ?? '').trim(), (nom ?? '').trim()]
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isNotEmpty) return parts.join(' ');
+    return '—';
+  }
+
+  static String? _str(dynamic v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+  factory AdcContact.fromJson(Map<String, dynamic> m) {
+    return AdcContact(
+      id: '${m['id']}',
+      nom: _str(m['nom']),
+      prenom: _str(m['prenom']),
+      poste: _str(m['poste']),
+      telephone: _str(m['telephone']),
+      email: _str(m['email']),
+      typeContact: _str(m['type_contact']),
+    );
+  }
+}
+
+class AdcActionTrace {
+  AdcActionTrace({
+    this.date,
+    this.heure,
+    this.canal,
+    this.message,
+    this.contact,
+    this.auteur,
+    this.ressenti,
+  });
+
+  final String? date;
+  final String? heure;
+  final String? canal;
+  final String? message;
+  final String? contact;
+  final String? auteur;
+  final String? ressenti;
+
+  static String? _str(dynamic v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+  factory AdcActionTrace.fromJson(Map<String, dynamic> m) {
+    return AdcActionTrace(
+      date: _str(m['date']),
+      heure: _str(m['heure']),
+      canal: _str(m['canal']),
+      message: _str(m['message']) ?? _str(m['description']),
+      contact: _str(m['contact']),
+      auteur: _str(m['auteur']),
+      ressenti: _str(m['ressenti']),
+    );
+  }
+}
+
+List<AdcActionTrace> _parseAdcActionTrace(dynamic raw) {
+  final trace = <AdcActionTrace>[];
+  if (raw is List) {
+    for (final e in raw) {
+      if (e is Map) {
+        trace.add(AdcActionTrace.fromJson(Map<String, dynamic>.from(e)));
+      }
+    }
+  }
+  return trace;
+}
+
+class ExperienceAdcDetail extends ExperienceAdc {
+  ExperienceAdcDetail({
+    required super.id,
+    super.clientName,
+    super.siteName,
+    super.datePlanifiee,
+    super.dateAppel,
+    super.statut,
+    super.ressenti,
+    super.commentaire,
+    super.interventionRef,
+    super.interventionDate,
+    super.idContact,
+    super.actionsTrace,
+    this.clientId,
+    this.siteId,
+    this.relanceWhatsappMessage,
+    this.relanceMailMessage,
+    this.relanceTelephoneMessage,
+    this.contacts = const [],
+  });
+
+  final String? clientId;
+  final String? siteId;
+  final String? relanceWhatsappMessage;
+  final String? relanceMailMessage;
+  final String? relanceTelephoneMessage;
+  final List<AdcContact> contacts;
+
+  factory ExperienceAdcDetail.fromJson(Map<String, dynamic> m) {
+    final base = ExperienceAdc.fromJson(m);
+    final rawContacts = m['contacts'];
+    final contacts = <AdcContact>[];
+    if (rawContacts is List) {
+      for (final e in rawContacts) {
+        if (e is Map) {
+          contacts.add(AdcContact.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    final trace = _parseAdcActionTrace(m['actions_trace']);
+    String? str(dynamic v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+    return ExperienceAdcDetail(
+      id: base.id,
+      clientName: base.clientName,
+      siteName: base.siteName,
+      datePlanifiee: base.datePlanifiee,
+      dateAppel: base.dateAppel,
+      statut: base.statut,
+      ressenti: base.ressenti,
+      commentaire: base.commentaire,
+      interventionRef: base.interventionRef,
+      interventionDate: base.interventionDate,
+      idContact: base.idContact,
+      clientId: m['client_id']?.toString(),
+      siteId: m['site_id']?.toString(),
+      relanceWhatsappMessage: str(m['relance_whatsapp_message']),
+      relanceMailMessage: str(m['relance_mail_message']),
+      relanceTelephoneMessage: str(m['relance_telephone_message']),
+      contacts: contacts,
+      actionsTrace: trace,
     );
   }
 }
@@ -278,6 +444,7 @@ class RapportMensuelClientSummary {
     required this.nbAdc,
     required this.nbVdc,
     required this.nbPlanning,
+    this.sites = const [],
   });
 
   final String clientId;
@@ -286,8 +453,20 @@ class RapportMensuelClientSummary {
   final int nbAdc;
   final int nbVdc;
   final int nbPlanning;
+  final List<RapportMensuelSiteSummary> sites;
 
   factory RapportMensuelClientSummary.fromJson(Map<String, dynamic> m) {
+    final rawSites = m['sites'];
+    final sites = <RapportMensuelSiteSummary>[];
+    if (rawSites is List) {
+      for (final e in rawSites) {
+        if (e is Map) {
+          sites.add(
+            RapportMensuelSiteSummary.fromJson(Map<String, dynamic>.from(e)),
+          );
+        }
+      }
+    }
     return RapportMensuelClientSummary(
       clientId: '${m['client_id'] ?? ''}',
       clientNom: '${m['client_nom'] ?? ''}',
@@ -295,6 +474,30 @@ class RapportMensuelClientSummary {
       nbAdc: (m['nb_adc'] as num?)?.toInt() ?? 0,
       nbVdc: (m['nb_vdc'] as num?)?.toInt() ?? 0,
       nbPlanning: (m['nb_planning'] as num?)?.toInt() ?? 0,
+      sites: sites,
+    );
+  }
+}
+
+class RapportMensuelSiteSummary {
+  RapportMensuelSiteSummary({
+    required this.site,
+    required this.nbInterventions,
+    required this.nbAdc,
+    required this.nbVdc,
+  });
+
+  final String site;
+  final int nbInterventions;
+  final int nbAdc;
+  final int nbVdc;
+
+  factory RapportMensuelSiteSummary.fromJson(Map<String, dynamic> m) {
+    return RapportMensuelSiteSummary(
+      site: '${m['site'] ?? ''}',
+      nbInterventions: (m['nb_interventions'] as num?)?.toInt() ?? 0,
+      nbAdc: (m['nb_adc'] as num?)?.toInt() ?? 0,
+      nbVdc: (m['nb_vdc'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -328,6 +531,116 @@ class RapportMensuelSummary {
       mois: '${m['mois'] ?? ''}',
       moisLabel: '${m['mois_label'] ?? ''}',
       clients: clients,
+    );
+  }
+}
+
+class RapportMensuelLigne {
+  RapportMensuelLigne({
+    required this.interventionId,
+    this.lieu,
+    this.dateLabel,
+    this.action,
+    this.observation,
+    this.ressentiClient,
+    this.ressentiTechnicien,
+    this.nomContact,
+  });
+
+  final String interventionId;
+  final String? lieu;
+  final String? dateLabel;
+  final String? action;
+  final String? observation;
+  final String? ressentiClient;
+  final String? ressentiTechnicien;
+  final String? nomContact;
+
+  static String? _str(dynamic v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+  factory RapportMensuelLigne.fromJson(Map<String, dynamic> m) {
+    return RapportMensuelLigne(
+      interventionId: '${m['intervention_id'] ?? m['id'] ?? ''}',
+      lieu: _str(m['lieu']),
+      dateLabel: _str(m['date_label']) ?? _str(m['date_intervention_label']),
+      action: _str(m['action']),
+      observation: _str(m['observation']),
+      ressentiClient: _str(m['ressenti_client']),
+      ressentiTechnicien: _str(m['ressenti_technicien']),
+      nomContact: _str(m['nom_contact']),
+    );
+  }
+}
+
+class RapportMensuelDetail {
+  RapportMensuelDetail({
+    required this.clientId,
+    required this.clientNom,
+    required this.mois,
+    required this.moisLabel,
+    this.codeClient,
+    this.moisSuivantLabel,
+    this.sites = const [],
+    this.interactionsAdc = const [],
+    this.interactionsVdc = const [],
+    this.interactionsRefill = const [],
+    this.planning = const [],
+    this.observationsGenerales = '',
+  });
+
+  final String clientId;
+  final String clientNom;
+  final String mois;
+  final String moisLabel;
+  final String? codeClient;
+  final String? moisSuivantLabel;
+  final List<String> sites;
+  final List<RapportMensuelLigne> interactionsAdc;
+  final List<RapportMensuelLigne> interactionsVdc;
+  final List<RapportMensuelLigne> interactionsRefill;
+  final List<RapportMensuelLigne> planning;
+  final String observationsGenerales;
+
+  int get totalInteractions =>
+      interactionsAdc.length + interactionsVdc.length + interactionsRefill.length;
+
+  static String? _str(dynamic v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+  static List<RapportMensuelLigne> _parseLignes(dynamic raw) {
+    final rows = <RapportMensuelLigne>[];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map) {
+          rows.add(RapportMensuelLigne.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    return rows;
+  }
+
+  factory RapportMensuelDetail.fromJson(Map<String, dynamic> m) {
+    final rawSites = m['sites'];
+    final sites = <String>[];
+    if (rawSites is List) {
+      for (final e in rawSites) {
+        if (e is String && e.trim().isNotEmpty) sites.add(e.trim());
+      }
+    }
+    return RapportMensuelDetail(
+      clientId: '${m['client_id'] ?? ''}',
+      clientNom: '${m['client_nom'] ?? ''}',
+      mois: '${m['mois'] ?? ''}',
+      moisLabel: '${m['mois_label'] ?? ''}',
+      codeClient: _str(m['code_client']),
+      moisSuivantLabel: _str(m['mois_suivant_label']),
+      sites: sites,
+      interactionsAdc: _parseLignes(m['interactions_adc']),
+      interactionsVdc: _parseLignes(m['interactions_vdc']),
+      interactionsRefill: _parseLignes(m['interactions_refill']),
+      planning: _parseLignes(m['planning']),
+      observationsGenerales: '${m['observations_generales_defaut'] ?? ''}',
     );
   }
 }

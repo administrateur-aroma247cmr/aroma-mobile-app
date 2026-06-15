@@ -5,7 +5,7 @@ import '../providers/auth_provider.dart';
 import '../screens/caisse_screen.dart';
 import '../screens/compta_hub_screen.dart';
 import '../screens/interventions_hub_screen.dart';
-import '../screens/kpi_screen.dart';
+import '../screens/analytics_screen.dart';
 import '../screens/rh_hub_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../theme/aroma_theme.dart';
@@ -50,7 +50,7 @@ class HomeScreen extends StatelessWidget {
             colors: [Color(0xFF7C3AED), Color(0xFFC026D3)],
           ),
           icon: Icons.bar_chart_rounded,
-          onTap: () => _openModule(context, const KpiScreen()),
+          onTap: () => _openModule(context, const AnalyticsScreen()),
         ),
       if (auth.canShowHomeModule('tasks'))
         _HomeModule(

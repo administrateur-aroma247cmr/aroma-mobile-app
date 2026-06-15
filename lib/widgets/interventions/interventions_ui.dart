@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/aroma_theme.dart';
+import '../../utils/intervention_status_colors.dart';
 
 /// Palette module Interventions — bleu terrain (aligné CRM web).
 abstract final class InterventionsUi {
@@ -249,6 +250,7 @@ class InterventionsListCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.trailing,
+    this.trailingWidget,
     required this.onTap,
     this.icon = Icons.chevron_right_rounded,
   });
@@ -256,6 +258,7 @@ class InterventionsListCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String? trailing;
+  final Widget? trailingWidget;
   final VoidCallback onTap;
   final IconData icon;
 
@@ -302,7 +305,10 @@ class InterventionsListCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (trailing != null) ...[
+                if (trailingWidget != null) ...[
+                  const SizedBox(width: 8),
+                  trailingWidget!,
+                ] else if (trailing != null) ...[
                   const SizedBox(width: 8),
                   Text(
                     trailing!,
@@ -323,11 +329,182 @@ class InterventionsListCard extends StatelessWidget {
   }
 }
 
+class InterventionEtatBadge extends StatelessWidget {
+  const InterventionEtatBadge({super.key, required this.etat});
+
+  final String? etat;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = (etat ?? '').trim().isEmpty ? '—' : etat!.trim();
+    final colors = InterventionStatusColors.forEtat(etat);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: colors.foreground,
+        ),
+      ),
+    );
+  }
+}
+
+class AdcStatutBadge extends StatelessWidget {
+  const AdcStatutBadge({super.key, required this.statut});
+
+  final String? statut;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AdcStatutColors.forStatut(statut);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(
+        AdcStatutColors.label(statut),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: colors.foreground,
+        ),
+      ),
+    );
+  }
+}
+
+class AdcListCard extends StatelessWidget {
+  const AdcListCard({
+    super.key,
+    required this.clientName,
+    required this.siteName,
+    required this.datePlanifiee,
+    required this.statut,
+    this.exchangeCount,
+    required this.onTap,
+  });
+
+  final String clientName;
+  final String siteName;
+  final String datePlanifiee;
+  final String? statut;
+  final int? exchangeCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AromaColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE4E4E7)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        clientName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AromaColors.zinc900,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _metaLine('Site', siteName),
+                      const SizedBox(height: 2),
+                      _metaLine('Date planifiée', datePlanifiee),
+                      if (exchangeCount != null && exchangeCount! > 0) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '$exchangeCount échange${exchangeCount! > 1 ? 's' : ''}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AromaColors.zinc500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    AdcStatutBadge(statut: statut),
+                    const SizedBox(height: 8),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AromaColors.zinc500,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _metaLine(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label · ',
+          style: const TextStyle(fontSize: 12, color: AromaColors.zinc500),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AromaColors.zinc800,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class InterventionsDetailRow extends StatelessWidget {
-  const InterventionsDetailRow(this.label, this.value, {super.key});
+  const InterventionsDetailRow(
+    this.label,
+    this.value, {
+    super.key,
+    this.valueWidget,
+  });
 
   final String label;
   final String value;
+  final Widget? valueWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -344,13 +521,14 @@ class InterventionsDetailRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: AromaColors.zinc900,
-              ),
-            ),
+            child: valueWidget ??
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: AromaColors.zinc900,
+                  ),
+                ),
           ),
         ],
       ),
@@ -424,4 +602,76 @@ Widget interventionsErrorState({
       ),
     ),
   );
+}
+
+class InterventionsToggleKpiCard extends StatelessWidget {
+  const InterventionsToggleKpiCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.accent,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color accent;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? accent.withValues(alpha: 0.08) : AromaColors.surface,
+      elevation: selected ? 2 : 0,
+      shadowColor: accent.withValues(alpha: 0.25),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? accent : AromaColors.zinc200,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: accent, size: 22),
+                  const Spacer(),
+                  if (selected)
+                    Icon(Icons.check_circle_rounded, color: accent, size: 18),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: selected ? accent : AromaColors.zinc500,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: selected ? accent : null,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/intervention.dart';
 import '../../providers/auth_provider.dart';
+import '../../screens/fiche_adc_screen.dart';
+import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/entity_scope_selector.dart';
@@ -114,7 +116,11 @@ class _InterventionsListTabState extends State<InterventionsListTab>
         InterventionsDetailRow('Site', i.siteAffiche.isEmpty ? '—' : i.siteAffiche),
         InterventionsDetailRow('Ville', i.ville ?? '—'),
         InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
-        InterventionsDetailRow('État', i.etat ?? '—'),
+        InterventionsDetailRow(
+          'État',
+          i.etat ?? '—',
+          valueWidget: InterventionEtatBadge(etat: i.etat),
+        ),
         InterventionsDetailRow('Technicien', i.technicienNom ?? '—'),
         InterventionsDetailRow('Auteur', i.auteur ?? '—'),
         if ((i.description ?? '').trim().isNotEmpty)
@@ -183,7 +189,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                   title: i.titreAffiche,
                   subtitle:
                       '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
-                  trailing: i.etat,
+                  trailingWidget: InterventionEtatBadge(etat: i.etat),
                   onTap: () => _showDetail(i),
                 ),
               ),
@@ -293,7 +299,11 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
         InterventionsDetailRow('Type', i.typeIntervention ?? '—'),
         InterventionsDetailRow('Client', i.clientNom ?? '—'),
         InterventionsDetailRow('Site', i.siteAffiche.isEmpty ? '—' : i.siteAffiche),
-        InterventionsDetailRow('État', i.etat ?? '—'),
+        InterventionsDetailRow(
+          'État',
+          i.etat ?? '—',
+          valueWidget: InterventionEtatBadge(etat: i.etat),
+        ),
       ],
     );
   }
@@ -389,7 +399,7 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
                   title: i.titreAffiche,
                   subtitle:
                       '${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
-                  trailing: i.etat,
+                  trailingWidget: InterventionEtatBadge(etat: i.etat),
                   onTap: () => _showDetail(i),
                 ),
               ),
@@ -524,24 +534,15 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
     }).toList();
   }
 
-  void _showDetail(ExperienceAdc a) {
-    showInterventionsDetailSheet(
-      context: context,
-      title: 'Appel de courtoisie',
-      children: [
-        InterventionsDetailRow('Client', a.clientName ?? '—'),
-        InterventionsDetailRow('Site', a.siteName ?? '—'),
-        InterventionsDetailRow('Statut', a.statut ?? '—'),
-        InterventionsDetailRow('Ressenti', a.ressenti ?? '—'),
-        InterventionsDetailRow(
-          'Date planifiée',
-          formatDateFr(a.datePlanifiee),
+  void _openFiche(ExperienceAdc adc) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FicheAdcScreen(
+          adcId: adc.id,
+          fallbackSiteName: adc.siteName,
+          fallbackDatePlanifiee: adc.datePlanifiee,
         ),
-        InterventionsDetailRow('Date appel', formatDateFr(a.dateAppel)),
-        InterventionsDetailRow('Intervention', a.interventionRef ?? '—'),
-        if ((a.commentaire ?? '').trim().isNotEmpty)
-          InterventionsDetailRow('Commentaire', a.commentaire!.trim()),
-      ],
+      ),
     );
   }
 
@@ -581,11 +582,15 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
             ...rows.map(
               (a) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: InterventionsListCard(
-                  title: a.titreAffiche,
-                  subtitle:
-                      '${formatDateFr(a.datePlanifiee ?? a.dateAppel)} · ${a.siteName ?? '—'} · ${a.statut ?? '—'}',
-                  onTap: () => _showDetail(a),
+                child: AdcListCard(
+                  clientName: a.titreAffiche,
+                  siteName: a.siteName ?? '—',
+                  datePlanifiee: formatDateFr(a.datePlanifiee),
+                  statut: a.statut,
+                  exchangeCount: a.actionsTrace.isNotEmpty
+                      ? a.actionsTrace.length
+                      : null,
+                  onTap: () => _openFiche(a),
                 ),
               ),
             ),
@@ -860,6 +865,8 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
   String? _error;
   RapportMensuelSummary? _summary;
   String _monthKey = currentMonthIso();
+  String _search = '';
+  final _expandedClients = <String>{};
 
   @override
   void initState() {
@@ -910,17 +917,41 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
     }
   }
 
-  void _showDetail(RapportMensuelClientSummary c) {
-    showInterventionsDetailSheet(
-      context: context,
-      title: c.clientNom,
-      children: [
-        InterventionsDetailRow('Interventions', '${c.nbInterventions}'),
-        InterventionsDetailRow('ADC', '${c.nbAdc}'),
-        InterventionsDetailRow('VDC', '${c.nbVdc}'),
-        InterventionsDetailRow('Planning', '${c.nbPlanning}'),
-      ],
+  void _openDetail(RapportMensuelClientSummary client) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RapportMensuelDetailScreen(
+          clientId: client.clientId,
+          clientNom: client.clientNom,
+          mois: _monthKey,
+        ),
+      ),
     );
+  }
+
+  List<RapportMensuelClientSummary> get _filteredClients {
+    final q = _search.trim().toLowerCase();
+    final clients = _summary?.clients ?? [];
+    if (q.isEmpty) return clients;
+    return clients
+        .where((c) => c.clientNom.toLowerCase().contains(q))
+        .toList();
+  }
+
+  int get _totalInterventions => (_summary?.clients ?? [])
+      .fold<int>(0, (sum, c) => sum + c.nbInterventions);
+
+  int get _totalAdc =>
+      (_summary?.clients ?? []).fold<int>(0, (sum, c) => sum + c.nbAdc);
+
+  void _toggleExpanded(String clientId) {
+    setState(() {
+      if (_expandedClients.contains(clientId)) {
+        _expandedClients.remove(clientId);
+      } else {
+        _expandedClients.add(clientId);
+      }
+    });
   }
 
   @override
@@ -931,7 +962,7 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
       return interventionsErrorState(message: _error!, onRetry: _reload);
     }
 
-    final clients = _summary?.clients ?? [];
+    final clients = _filteredClients;
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
@@ -939,7 +970,7 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
         children: [
           const InterventionsSectionHeader(
             title: "Mes rapports d'interactions",
-            subtitle: 'Synthèse mensuelle par client',
+            subtitle: 'Synthèse mensuelle par client — aligné CRM web',
           ),
           const SizedBox(height: 12),
           Row(
@@ -963,6 +994,34 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _StatBox(
+                  label: 'Interventions',
+                  value: '$_totalInterventions',
+                  color: InterventionsUi.gradientStart,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatBox(
+                  label: 'ADC',
+                  value: '$_totalAdc',
+                  color: const Color(0xFF059669),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher un client…',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (v) => setState(() => _search = v),
+          ),
           const SizedBox(height: 16),
           if (clients.isEmpty)
             const InterventionsEmptyState(
@@ -970,19 +1029,103 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
               icon: Icons.description_outlined,
             )
           else
-            ...clients.map(
-              (c) => Padding(
+            ...clients.map((c) {
+              final expanded = _expandedClients.contains(c.clientId);
+              return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: InterventionsListCard(
-                  title: c.clientNom,
-                  subtitle:
-                      '${c.nbInterventions} interv. · ${c.nbAdc} ADC · ${c.nbVdc} VDC',
-                  trailing: '${c.nbPlanning} plan.',
-                  onTap: () => _showDetail(c),
+                child: Column(
+                  children: [
+                    InterventionsListCard(
+                      title: c.clientNom,
+                      subtitle:
+                          '${c.nbInterventions} interv. · ${c.nbAdc} ADC · ${c.nbVdc} VDC · ${c.nbPlanning} plan.',
+                      trailing: c.sites.isNotEmpty
+                          ? '${c.sites.length} site(s)'
+                          : null,
+                      icon: expanded
+                          ? Icons.expand_more_rounded
+                          : Icons.chevron_right_rounded,
+                      onTap: () => _openDetail(c),
+                    ),
+                    if (c.sites.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => _toggleExpanded(c.clientId),
+                          icon: Icon(
+                            expanded
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            size: 18,
+                          ),
+                          label: Text(
+                            expanded ? 'Masquer les sites' : 'Voir les sites',
+                          ),
+                        ),
+                      ),
+                    if (expanded)
+                      ...c.sites.map(
+                        (s) => Padding(
+                          padding: const EdgeInsets.only(
+                            left: 12,
+                            bottom: 6,
+                          ),
+                          child: InterventionsListCard(
+                            title: s.site,
+                            subtitle:
+                                '${s.nbInterventions} interv. · ${s.nbAdc} ADC · ${s.nbVdc} VDC',
+                            onTap: () => _openDetail(c),
+                            icon: Icons.place_outlined,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-            ),
+              );
+            }),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatBox extends StatelessWidget {
+  const _StatBox({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AromaColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AromaColors.zinc200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AromaColors.zinc500),
+          ),
         ],
       ),
     );

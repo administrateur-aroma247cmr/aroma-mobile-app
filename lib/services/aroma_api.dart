@@ -1367,6 +1367,23 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
+  Future<ExperienceAdcDetail> getExperienceAdcDetail(String id) async {
+    final res = await _client.get(
+      _uri('/api/experience-adc/${Uri.encodeComponent(id)}'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return ExperienceAdcDetail.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+      throw ApiException('Réponse fiche ADC invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
   Future<List<TransportIntervention>> listTransports() async {
     final res = await _client.get(
       _uri('/api/transports'),
@@ -1438,6 +1455,29 @@ class AromaApi {
         );
       }
       throw ApiException('Réponse rapport mensuel invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<RapportMensuelDetail> getRapportMensuelDetail({
+    required String clientId,
+    required String mois,
+  }) async {
+    final res = await _client.get(
+      _uri('/api/interventions/rapport-mensuel/detail', {
+        'client_id': clientId,
+        'mois': mois,
+      }),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return RapportMensuelDetail.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+      throw ApiException('Réponse détail rapport invalide.');
     }
     throw _errorFromResponse(res);
   }
