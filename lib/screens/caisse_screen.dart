@@ -7,18 +7,21 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../widgets/caisse_demande_form_sheet.dart';
+import '../widgets/compta/compta_ui.dart';
 import '../widgets/entity_scope_selector.dart';
 
 class CaisseScreen extends StatefulWidget {
-  const CaisseScreen({super.key});
+  const CaisseScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<CaisseScreen> createState() => _CaisseScreenState();
 }
 
 class _CaisseScreenState extends State<CaisseScreen>
-    with SingleTickerProviderStateMixin, EntityScopeReloadMixin {
-  late TabController _tabs;
+    with EntityScopeReloadMixin {
+  String _currentTab = 'demandes';
   bool _loading = true;
   String? _error;
   List<DemandeAPayer> _demandes = [];
@@ -26,17 +29,16 @@ class _CaisseScreenState extends State<CaisseScreen>
   CaisseMetrics? _metrics;
   MaCaisseAccess? _access;
 
+  static const _subTabs = [
+    ComptaTabConfig('demandes', 'Mes demandes', Icons.receipt_long_outlined),
+    ComptaTabConfig('ma_caisse', 'Ma caisse', Icons.storefront_outlined),
+    ComptaTabConfig('recap', 'Récap', Icons.summarize_outlined),
+  ];
+
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
     _reload();
-  }
-
-  @override
-  void dispose() {
-    _tabs.dispose();
-    super.dispose();
   }
 
   Future<void> _reload() async {
@@ -127,63 +129,103 @@ class _CaisseScreenState extends State<CaisseScreen>
     if (ok == true) await _reload();
   }
 
+  Widget _body(AuthProvider auth) {
+    final canMaCaisse = auth.canAccessCaisseMaPage(_access);
+    final showMaCaisseHint = canMaCaisse;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return _CaisseError(message: _error!, onRetry: _reload);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.embedded) ...[
+          ComptaTabPills(
+            tabs: _subTabs,
+            selected: _currentTab,
+            onSelected: (tab) => setState(() => _currentTab = tab),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (widget.embedded &&
+            auth.canCreateCaisseDemande &&
+            _currentTab == 'demandes')
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, widget.embedded ? 0 : 12, 16, 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () => _openDemandeForm(),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Nouvelle demande'),
+              ),
+            ),
+          ),
+        Expanded(
+          child: switch (_currentTab) {
+            'ma_caisse' => _MaCaisseTab(
+                canAccess: canMaCaisse,
+                demandes: _demandesValidation,
+                isDesignatedCaissier: _access?.isDesignatedCaissier == true,
+                onRefresh: _reload,
+              ),
+            'recap' => _RecapTab(
+                isExecutive: auth.isExecutive,
+                metrics: _metrics,
+                recapPerso: _recapPerso(),
+                showMaCaisseHint: showMaCaisseHint,
+                isDesignatedCaissier: _access?.isDesignatedCaissier == true,
+              ),
+            _ => _DemandesTab(
+                demandes: _demandes,
+                onRefresh: _reload,
+                canEdit: auth.canCreateCaisseDemande,
+                onEdit: (d) => _openDemandeForm(demande: d),
+              ),
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     watchEntityScope(_reload);
     final auth = context.watch<AuthProvider>();
-    final canMaCaisse = auth.canAccessCaisseMaPage(_access);
-    final showMaCaisseHint = canMaCaisse;
+
+    if (widget.embedded) {
+      return _body(auth);
+    }
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
       appBar: AppBar(
         title: const Text('Caisse'),
         actions: const [EntityScopeAppBarAction()],
-        bottom: TabBar(
-          controller: _tabs,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Mes demandes'),
-            Tab(text: 'Ma caisse'),
-            Tab(text: 'Récapitulatif'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ComptaTabPills(
+              tabs: _subTabs,
+              selected: _currentTab,
+              onSelected: (tab) => setState(() => _currentTab = tab),
+            ),
+          ),
         ),
       ),
-      floatingActionButton: auth.canCreateCaisseDemande
+      floatingActionButton: auth.canCreateCaisseDemande && _currentTab == 'demandes'
           ? FloatingActionButton.extended(
               onPressed: () => _openDemandeForm(),
               icon: const Icon(Icons.add),
               label: const Text('Nouvelle demande'),
             )
           : null,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? _CaisseError(message: _error!, onRetry: _reload)
-          : TabBarView(
-              controller: _tabs,
-              children: [
-                _DemandesTab(
-                  demandes: _demandes,
-                  onRefresh: _reload,
-                  canEdit: auth.canCreateCaisseDemande,
-                  onEdit: (d) => _openDemandeForm(demande: d),
-                ),
-                _MaCaisseTab(
-                  canAccess: canMaCaisse,
-                  demandes: _demandesValidation,
-                  isDesignatedCaissier: _access?.isDesignatedCaissier == true,
-                  onRefresh: _reload,
-                ),
-                _RecapTab(
-                  isExecutive: auth.isExecutive,
-                  metrics: _metrics,
-                  recapPerso: _recapPerso(),
-                  showMaCaisseHint: showMaCaisseHint,
-                  isDesignatedCaissier: _access?.isDesignatedCaissier == true,
-                ),
-              ],
-            ),
+      body: _body(auth),
     );
   }
 }
