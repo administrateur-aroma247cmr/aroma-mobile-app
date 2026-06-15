@@ -6,6 +6,7 @@ import '../models/demande_a_payer.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
+import '../widgets/caisse_demande_form_sheet.dart';
 import '../widgets/entity_scope_selector.dart';
 
 class CaisseScreen extends StatefulWidget {
@@ -21,13 +22,14 @@ class _CaisseScreenState extends State<CaisseScreen>
   bool _loading = true;
   String? _error;
   List<DemandeAPayer> _demandes = [];
+  List<DemandeAPayer> _demandesValidation = [];
   CaisseMetrics? _metrics;
   MaCaisseAccess? _access;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _reload();
   }
 
@@ -45,21 +47,33 @@ class _CaisseScreenState extends State<CaisseScreen>
     try {
       final auth = context.read<AuthProvider>();
       final api = auth.api;
+      final access = await api.getMaCaisseAccess();
+      final canMaCaisse = auth.canAccessCaisseMaPage(access);
       final futures = <Future<dynamic>>[
         api.listDemandesAPayer(auteurMoi: true),
-        api.getMaCaisseAccess(),
+        if (canMaCaisse)
+          api.listDemandesAPayer(
+            statut: 'Soumis en attente de validations',
+          ),
+        if (auth.isExecutive) api.getCaisseMetrics(),
       ];
-      if (auth.isExecutive) {
-        futures.add(api.getCaisseMetrics());
-      }
       final results = await Future.wait(futures);
       if (!mounted) return;
+      var idx = 0;
+      final demandes = results[idx++] as List<DemandeAPayer>;
+      List<DemandeAPayer> validation = [];
+      if (canMaCaisse && idx < results.length) {
+        validation = results[idx++] as List<DemandeAPayer>;
+      }
+      CaisseMetrics? metrics;
+      if (auth.isExecutive && idx < results.length) {
+        metrics = results[idx] as CaisseMetrics;
+      }
       setState(() {
-        _demandes = results[0] as List<DemandeAPayer>;
-        _access = results[1] as MaCaisseAccess;
-        _metrics = auth.isExecutive && results.length > 2
-            ? results[2] as CaisseMetrics
-            : null;
+        _demandes = demandes;
+        _demandesValidation = validation;
+        _access = access;
+        _metrics = metrics;
         _loading = false;
       });
     } catch (e) {
@@ -96,12 +110,29 @@ class _CaisseScreenState extends State<CaisseScreen>
     );
   }
 
+  Future<void> _openDemandeForm({DemandeAPayer? demande}) async {
+    final auth = context.read<AuthProvider>();
+    if (demande == null && !auth.canCreateCaisseDemande) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Création non autorisée.')),
+      );
+      return;
+    }
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => CaisseDemandeFormSheet(demande: demande),
+    );
+    if (ok == true) await _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     watchEntityScope(_reload);
     final auth = context.watch<AuthProvider>();
-    final showMaCaisseHint =
-        auth.isCaisseMaPageDirection || (_access?.canAccess == true);
+    final canMaCaisse = auth.canAccessCaisseMaPage(_access);
+    final showMaCaisseHint = canMaCaisse;
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
@@ -110,16 +141,21 @@ class _CaisseScreenState extends State<CaisseScreen>
         actions: const [EntityScopeAppBarAction()],
         bottom: TabBar(
           controller: _tabs,
-          tabs: [
-            const Tab(text: 'Mes demandes'),
-            Tab(
-              text: auth.isExecutive
-                  ? 'Pilotage'
-                  : 'Mon récapitulatif',
-            ),
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Mes demandes'),
+            Tab(text: 'Ma caisse'),
+            Tab(text: 'Récapitulatif'),
           ],
         ),
       ),
+      floatingActionButton: auth.canCreateCaisseDemande
+          ? FloatingActionButton.extended(
+              onPressed: () => _openDemandeForm(),
+              icon: const Icon(Icons.add),
+              label: const Text('Nouvelle demande'),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -129,6 +165,14 @@ class _CaisseScreenState extends State<CaisseScreen>
               children: [
                 _DemandesTab(
                   demandes: _demandes,
+                  onRefresh: _reload,
+                  canEdit: auth.canCreateCaisseDemande,
+                  onEdit: (d) => _openDemandeForm(demande: d),
+                ),
+                _MaCaisseTab(
+                  canAccess: canMaCaisse,
+                  demandes: _demandesValidation,
+                  isDesignatedCaissier: _access?.isDesignatedCaissier == true,
                   onRefresh: _reload,
                 ),
                 _RecapTab(
@@ -144,11 +188,91 @@ class _CaisseScreenState extends State<CaisseScreen>
   }
 }
 
+class _MaCaisseTab extends StatelessWidget {
+  const _MaCaisseTab({
+    required this.canAccess,
+    required this.demandes,
+    required this.isDesignatedCaissier,
+    required this.onRefresh,
+  });
+
+  final bool canAccess;
+  final List<DemandeAPayer> demandes;
+  final bool isDesignatedCaissier;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canAccess) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Accès réservé au caissier désigné ou à la direction.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AromaColors.zinc500),
+          ),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          color: Colors.amber.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text(
+              isDesignatedCaissier
+                  ? 'Vous êtes caissier désigné. Ouverture/fermeture de caisse : utilisez le CRM web pour les opérations complètes.'
+                  : 'Vue opérationnelle caisse. Les sessions ouverture/fermeture restent sur le CRM web.',
+              style: TextStyle(color: Colors.amber.shade900),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Demandes en attente de validation (${demandes.length})',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (demandes.isEmpty)
+          const Text(
+            'Aucune demande en attente.',
+            style: TextStyle(color: AromaColors.zinc500),
+          )
+        else
+          ...demandes.map(
+            (d) => Card(
+              child: ListTile(
+                title: Text(d.raisonBonCommande),
+                subtitle: Text('${d.client} · ${formatDateFr(d.dateADecaisser)}'),
+                trailing: Text(
+                  fmtFcfa(d.montantDemande),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _DemandesTab extends StatelessWidget {
-  const _DemandesTab({required this.demandes, required this.onRefresh});
+  const _DemandesTab({
+    required this.demandes,
+    required this.onRefresh,
+    required this.canEdit,
+    required this.onEdit,
+  });
 
   final List<DemandeAPayer> demandes;
   final Future<void> Function() onRefresh;
+  final bool canEdit;
+  final void Function(DemandeAPayer) onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -176,8 +300,10 @@ class _DemandesTab extends StatelessWidget {
         separatorBuilder: (context, index) => const SizedBox(height: 10),
         itemBuilder: (context, i) {
           final d = demandes[i];
+          final isBrouillon = (d.statut ?? '').contains('Brouillon');
           return Card(
             child: ListTile(
+              onTap: canEdit && isBrouillon ? () => onEdit(d) : null,
               title: Text(d.raisonBonCommande),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

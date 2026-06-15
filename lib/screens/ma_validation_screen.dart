@@ -7,10 +7,13 @@ import '../models/demande_a_payer.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/document_urls.dart';
+import '../utils/format_utils.dart';
 
 const _statutSoumisDemande = 'Soumis en attente de validations';
 const _statutValideHierarchie = 'Validé par Hierachie';
 const _statutNonValide = 'Non Valide';
+const _statutPaye = 'Paye';
+const _statutNonEffectue = 'Non effectué';
 
 /// Fenêtre calendaire locale J-7 à J (inclus), alignée sur `hierarchieDemandesDateWindowBounds` du CRM web.
 ({String min, String max}) _hierarchieDemandesDateWindowBounds() {
@@ -100,11 +103,14 @@ class _MaValidationScreenState extends State<MaValidationScreen>
   final Set<String> _selectedDemandeIds = {};
   String _searchDemandes = '';
   String _searchBonsF = '';
+  List<DemandeAPayer> _historiqueRaw = [];
+  String _searchHistoriqueAuteur = '';
+  String _historiqueMonthKey = currentMonthIso();
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final auth = context.read<AuthProvider>();
@@ -138,12 +144,29 @@ class _MaValidationScreenState extends State<MaValidationScreen>
         api.listDemandesAPayer(statut: _statutSoumisDemande),
         api.listBonsCommandeFournisseur(),
         api.listBonsCommandeInterne(),
+        api.listDemandesAPayer(statut: _statutValideHierarchie),
+        api.listDemandesAPayer(statut: _statutNonValide),
+        api.listDemandesAPayer(statut: _statutPaye),
+        api.listDemandesAPayer(statut: _statutNonEffectue),
       ]);
       if (!mounted) return;
+      final historiqueMap = <String, DemandeAPayer>{};
+      for (final list in results.sublist(3)) {
+        for (final d in list as List<DemandeAPayer>) {
+          historiqueMap[d.id] = d;
+        }
+      }
+      final historique = historiqueMap.values.toList()
+        ..sort((a, b) {
+          final da = DateTime.tryParse(a.createdAt ?? '')?.millisecondsSinceEpoch ?? 0;
+          final db = DateTime.tryParse(b.createdAt ?? '')?.millisecondsSinceEpoch ?? 0;
+          return db.compareTo(da);
+        });
       setState(() {
         _demandesRaw = results[0] as List<DemandeAPayer>;
         _bonsF = results[1] as List<BonCommandeFournisseurLite>;
         _bonsI = results[2] as List<BonCommandeInterneLite>;
+        _historiqueRaw = historique;
         _loading = false;
         _selectedDemandeIds.removeWhere(
           (id) => !_demandesInWindow.any((d) => d.id == id),
@@ -205,6 +228,48 @@ class _MaValidationScreenState extends State<MaValidationScreen>
           (b) => b.statut == 'validation_interne' || b.statut == 'en_attente',
         )
         .toList();
+  }
+
+  String _monthKeyFromIso(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final m = RegExp(r'^(\d{4}-\d{2})').firstMatch(iso.trim());
+    return m?.group(1) ?? '';
+  }
+
+  List<DemandeAPayer> get _filteredHistorique {
+    final auteurQ = _searchHistoriqueAuteur.trim().toLowerCase();
+    return _historiqueRaw.where((d) {
+      if (auteurQ.isNotEmpty &&
+          !(d.auteur ?? '').toLowerCase().contains(auteurQ)) {
+        return false;
+      }
+      if (_historiqueMonthKey.isEmpty) return true;
+      final sourceMonth =
+          _monthKeyFromIso(d.createdAt).isNotEmpty
+              ? _monthKeyFromIso(d.createdAt)
+              : _monthKeyFromIso(d.dateADecaisser);
+      return sourceMonth == _historiqueMonthKey;
+    }).toList();
+  }
+
+  void _shiftHistoriqueMonth(int delta) {
+    final parts = _historiqueMonthKey.split('-');
+    if (parts.length < 2) return;
+    var y = int.tryParse(parts[0]) ?? DateTime.now().year;
+    var m = int.tryParse(parts[1]) ?? DateTime.now().month;
+    m += delta;
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    setState(() {
+      _historiqueMonthKey =
+          '$y-${m.toString().padLeft(2, '0')}';
+    });
   }
 
   Future<void> _patchDemandeStatut(DemandeAPayer d, String statut) async {
@@ -317,6 +382,104 @@ class _MaValidationScreenState extends State<MaValidationScreen>
         SnackBar(content: Text(e.toString())),
       );
     }
+  }
+
+  void _showHistoriqueDemandeSheet(DemandeAPayer d) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AromaColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final donne = d.montantDonneTotal;
+        final hasRetour = donne > 0 ||
+            (d.retour != null && d.retour!.isNotEmpty) ||
+            (d.attenteRetourCaisse ?? '').isNotEmpty;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            16 + MediaQuery.of(ctx).padding.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Historique demande',
+                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                _DetailRow('Statut', d.statut ?? '—'),
+                _DetailRow('Client', d.client),
+                _DetailRow('Raison', d.raisonBonCommande),
+                _DetailRow('Auteur', d.auteur ?? '—'),
+                _DetailRow('Validé par', d.valideParHierarchie ?? '—'),
+                if ((d.payePar ?? '').isNotEmpty)
+                  _DetailRow('Payé par', d.payePar!),
+                _DetailRow(
+                  'Date',
+                  _formatDateFr(d.createdAt) != '—'
+                      ? _formatDateFr(d.createdAt)
+                      : _formatDateFr(d.dateADecaisser),
+                ),
+                _DetailRow('Date à décaisser', _formatDateFr(d.dateADecaisser)),
+                _DetailRow('Montant demandé', _fmtFcfa(d.montantDemande)),
+                if (d.montantAttendu != null)
+                  _DetailRow('Montant attendu', _fmtFcfa(d.montantAttendu!)),
+                if (hasRetour) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Retour caisse',
+                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (d.montantEspece != null && d.montantEspece! > 0)
+                    _DetailRow('Espèce', _fmtFcfa(d.montantEspece!)),
+                  if (d.montantMomo != null && d.montantMomo! > 0)
+                    _DetailRow('MoMo', _fmtFcfa(d.montantMomo!)),
+                  if (d.montantOm != null && d.montantOm! > 0)
+                    _DetailRow('Orange Money', _fmtFcfa(d.montantOm!)),
+                  if (d.montantCheque != null && d.montantCheque! > 0)
+                    _DetailRow('Chèque', _fmtFcfa(d.montantCheque!)),
+                  if (donne > 0)
+                    _DetailRow('Total donné', _fmtFcfa(donne)),
+                  if (d.retour != null && d.retour!.isNotEmpty)
+                    _DetailRow('Retour', d.retour!),
+                  if ((d.attenteRetourCaisse ?? '').isNotEmpty)
+                    _DetailRow('Attente retour', d.attenteRetourCaisse!),
+                ],
+                if (d.justificatifs.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Pièces jointes',
+                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...d.justificatifs.map(
+                    (j) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(j.name),
+                      trailing: const Icon(Icons.open_in_new_rounded),
+                      onTap: () => _openDocumentPath(ctx, j.path),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showDemandeSheet(DemandeAPayer d) {
@@ -607,6 +770,7 @@ class _MaValidationScreenState extends State<MaValidationScreen>
                 tabs: const [
                   Tab(text: 'Demandes à payer'),
                   Tab(text: 'Bons de commande'),
+                  Tab(text: 'Historique'),
                 ],
               ),
             ),
@@ -635,6 +799,7 @@ class _MaValidationScreenState extends State<MaValidationScreen>
                       tabs: const [
                         Tab(text: 'Demandes à payer'),
                         Tab(text: 'Bons de commande'),
+                        Tab(text: 'Historique'),
                       ],
                     ),
                   ),
@@ -891,6 +1056,105 @@ class _MaValidationScreenState extends State<MaValidationScreen>
                                     );
                                   },
                                   childCount: _bonsIAttente.length,
+                                ),
+                              ),
+                            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                          ],
+                        ),
+                      ),
+                _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : RefreshIndicator(
+                        onRefresh: _reload,
+                        child: CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Historique des demandes validées par la hiérarchie et leur avancement en caisse.',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: AromaColors.zinc500,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextField(
+                                      decoration: const InputDecoration(
+                                        hintText: 'Filtrer par auteur…',
+                                        prefixIcon: Icon(Icons.search_rounded),
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      onChanged: (v) =>
+                                          setState(() => _searchHistoriqueAuteur = v),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          onPressed: () => _shiftHistoriqueMonth(-1),
+                                          icon: const Icon(Icons.chevron_left_rounded),
+                                          tooltip: 'Mois précédent',
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            monthLabelFr(_historiqueMonthKey),
+                                            textAlign: TextAlign.center,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed: () => _shiftHistoriqueMonth(1),
+                                          icon: const Icon(Icons.chevron_right_rounded),
+                                          tooltip: 'Mois suivant',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (_filteredHistorique.isEmpty)
+                              const SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: Center(
+                                  child: Text('Aucun historique pour ces filtres.'),
+                                ),
+                              )
+                            else
+                              SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, i) {
+                                    final d = _filteredHistorique[i];
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      child: ListTile(
+                                        title: Text(
+                                          d.raisonBonCommande,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(
+                                          '${d.client} · ${d.auteur ?? '—'} · ${d.statut ?? '—'}',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: const Icon(Icons.chevron_right_rounded),
+                                        onTap: () => _showHistoriqueDemandeSheet(d),
+                                      ),
+                                    );
+                                  },
+                                  childCount: _filteredHistorique.length,
                                 ),
                               ),
                             const SliverToBoxAdapter(child: SizedBox(height: 32)),

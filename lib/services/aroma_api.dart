@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/analytics.dart';
 import '../models/bon_commande.dart';
+import '../models/client_lite.dart';
 import '../models/business_entity.dart';
 import '../models/caisse_metrics.dart';
 import '../models/collaborateur.dart';
@@ -450,6 +451,23 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
+  Future<DemandeAPayer> createDemandeAPayer(
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.post(
+      _uri('/api/caisse/demandes-a-payer'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return DemandeAPayer.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
   Future<DemandeAPayer> patchDemandeAPayer(
     String id,
     Map<String, dynamic> body,
@@ -635,6 +653,24 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
+  Future<DemandeRh> patchDemandeRh(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/demandes/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return DemandeRh.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
   Future<DemandeRh> createDemandeRh(Map<String, dynamic> body) async {
     final res = await _client.post(
       _uri('/api/demandes'),
@@ -692,6 +728,98 @@ class AromaApi {
       if (m is Map<String, dynamic>) {
         return Collaborateur.fromJson(m);
       }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Map<String, dynamic>> patchRecouvrement(
+    String facturationId,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri(
+        '/api/recouvrements/facturation/${Uri.encodeComponent(facturationId)}',
+      ),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) return m;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> listPresence({
+    String? collaborateurId,
+  }) async {
+    final q = collaborateurId != null
+        ? <String, String>{'id_collaborateur': collaborateurId}
+        : null;
+    final res = await _client.get(
+      _uri('/api/presence', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse présence invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> listDocumentRh(
+    String collaborateurId,
+  ) async {
+    final res = await _client.get(
+      _uri('/api/document-rh', {'id_collaborateur': collaborateurId}),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse documents RH invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<RecouvrementDetail> getRecouvrementDetail(String facturationId) async {
+    final res = await _client.get(
+      _uri(
+        '/api/recouvrements/facturation/${Uri.encodeComponent(facturationId)}',
+      ),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return RecouvrementDetail.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<ClientLite>> listClientsLite() async {
+    final res = await _client.get(_uri('/api/clients'), headers: _headers());
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse clients invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => ClientLite.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     }
     throw _errorFromResponse(res);
   }
@@ -828,6 +956,30 @@ class AromaApi {
       }
       return out;
     }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Tache> createTache(Map<String, dynamic> body) async {
+    final res = await _client.post(
+      _uri('/api/taches'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return Tache.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<void> deleteTache(String id) async {
+    final res = await _client.delete(
+      _uri('/api/taches/${Uri.encodeComponent(id)}'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 204 || res.statusCode == 200) return;
     throw _errorFromResponse(res);
   }
 

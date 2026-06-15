@@ -1,3 +1,51 @@
+class KpiSeriesPoint {
+  KpiSeriesPoint({required this.label, required this.value});
+
+  final String label;
+  final double value;
+
+  static double _num(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? 0;
+    return 0;
+  }
+
+  static List<KpiSeriesPoint> listFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map(
+          (e) => KpiSeriesPoint(
+            label: '${e['label'] ?? ''}',
+            value: _num(e['value']),
+          ),
+        )
+        .where((e) => e.label.isNotEmpty)
+        .toList();
+  }
+}
+
+class KpiTrendPoint {
+  KpiTrendPoint({required this.mois, required this.value});
+
+  final String mois;
+  final double value;
+
+  static List<KpiTrendPoint> listFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map(
+          (e) => KpiTrendPoint(
+            mois: '${e['mois'] ?? ''}',
+            value: KpiSeriesPoint._num(e['value']),
+          ),
+        )
+        .where((e) => e.mois.isNotEmpty)
+        .toList();
+  }
+}
+
 class AnalyticsGlobalDashboard {
   AnalyticsGlobalDashboard({
     required this.periode,
@@ -199,12 +247,24 @@ class AnalyticsInterventionsKpi {
     required this.periode,
     required this.tauxCloturePct,
     required this.delaiMoyenJours,
+    this.reparationsOuvertes = 0,
+    this.refill1 = 0,
+    this.refill2 = 0,
+    this.parType = const [],
+    this.parEtat = const [],
+    this.tendanceMensuelle = const [],
   });
 
   final int total;
   final int periode;
   final double tauxCloturePct;
   final double delaiMoyenJours;
+  final int reparationsOuvertes;
+  final int refill1;
+  final int refill2;
+  final List<KpiSeriesPoint> parType;
+  final List<KpiSeriesPoint> parEtat;
+  final List<KpiTrendPoint> tendanceMensuelle;
 
   factory AnalyticsInterventionsKpi.fromJson(Map<String, dynamic> m) {
     return AnalyticsInterventionsKpi(
@@ -212,6 +272,12 @@ class AnalyticsInterventionsKpi {
       periode: (m['periode'] as num?)?.toInt() ?? 0,
       tauxCloturePct: (m['taux_cloture_pct'] as num?)?.toDouble() ?? 0,
       delaiMoyenJours: (m['delai_moyen_jours'] as num?)?.toDouble() ?? 0,
+      reparationsOuvertes: (m['reparations_ouvertes'] as num?)?.toInt() ?? 0,
+      refill1: (m['refill_1'] as num?)?.toInt() ?? 0,
+      refill2: (m['refill_2'] as num?)?.toInt() ?? 0,
+      parType: KpiSeriesPoint.listFrom(m['par_type']),
+      parEtat: KpiSeriesPoint.listFrom(m['par_etat']),
+      tendanceMensuelle: KpiTrendPoint.listFrom(m['tendance_mensuelle']),
     );
   }
 }
@@ -221,11 +287,17 @@ class AnalyticsStockKpi {
     required this.sortiesHuileMl,
     required this.alertesConso,
     required this.bonsCommandeOuverts,
+    this.valeurStockFcfa = 0,
+    this.parEntrepot = const [],
+    this.tendanceSorties = const [],
   });
 
   final double sortiesHuileMl;
   final int alertesConso;
   final int bonsCommandeOuverts;
+  final double valeurStockFcfa;
+  final List<KpiSeriesPoint> parEntrepot;
+  final List<KpiTrendPoint> tendanceSorties;
 
   factory AnalyticsStockKpi.fromJson(Map<String, dynamic> m) {
     return AnalyticsStockKpi(
@@ -234,6 +306,9 @@ class AnalyticsStockKpi {
           0,
       alertesConso: (m['alertes_conso'] as num?)?.toInt() ?? 0,
       bonsCommandeOuverts: (m['bons_commande_ouverts'] as num?)?.toInt() ?? 0,
+      valeurStockFcfa: (m['valeur_stock_fcfa'] as num?)?.toDouble() ?? 0,
+      parEntrepot: KpiSeriesPoint.listFrom(m['par_entrepot']),
+      tendanceSorties: KpiTrendPoint.listFrom(m['tendance_sorties']),
     );
   }
 }
@@ -244,12 +319,22 @@ class AnalyticsComptabiliteKpi {
     required this.montantTotalFcfa,
     this.demandesMontant,
     this.caCredits,
+    this.chargesDebits = 0,
+    this.margePct = 0,
+    this.ecrituresValideesPct = 0,
+    this.parSite = const [],
+    this.tendanceCa = const [],
   });
 
   final int operationsPeriode;
   final double montantTotalFcfa;
   final double? demandesMontant;
   final double? caCredits;
+  final double chargesDebits;
+  final double margePct;
+  final double ecrituresValideesPct;
+  final List<KpiSeriesPoint> parSite;
+  final List<KpiTrendPoint> tendanceCa;
 
   factory AnalyticsComptabiliteKpi.fromJson(Map<String, dynamic> m) {
     return AnalyticsComptabiliteKpi(
@@ -259,6 +344,12 @@ class AnalyticsComptabiliteKpi {
           0,
       demandesMontant: (m['demandes_montant'] as num?)?.toDouble(),
       caCredits: (m['ca_credits'] as num?)?.toDouble(),
+      chargesDebits: (m['charges_debits'] as num?)?.toDouble() ?? 0,
+      margePct: (m['marge_pct'] as num?)?.toDouble() ?? 0,
+      ecrituresValideesPct:
+          (m['ecritures_validees_pct'] as num?)?.toDouble() ?? 0,
+      parSite: KpiSeriesPoint.listFrom(m['par_site']),
+      tendanceCa: KpiTrendPoint.listFrom(m['tendance_ca']),
     );
   }
 }
@@ -272,6 +363,9 @@ class AnalyticsRecouvrementKpi {
     required this.nbFacturesAttendu,
     required this.nbRelancesTotal,
     required this.tauxRecouvrementPct,
+    this.joursRetardMoyen = 0,
+    this.parTrancheRetard = const [],
+    this.topFacturesRetard = const [],
   });
 
   final double montantEncours;
@@ -281,6 +375,9 @@ class AnalyticsRecouvrementKpi {
   final int nbFacturesAttendu;
   final int nbRelancesTotal;
   final double tauxRecouvrementPct;
+  final double joursRetardMoyen;
+  final List<KpiSeriesPoint> parTrancheRetard;
+  final List<KpiSeriesPoint> topFacturesRetard;
 
   factory AnalyticsRecouvrementKpi.fromJson(Map<String, dynamic> m) {
     return AnalyticsRecouvrementKpi(
@@ -294,6 +391,9 @@ class AnalyticsRecouvrementKpi {
       nbRelancesTotal: (m['nb_relances_total'] as num?)?.toInt() ?? 0,
       tauxRecouvrementPct:
           (m['taux_recouvrement_pct'] as num?)?.toDouble() ?? 0,
+      joursRetardMoyen: (m['jours_retard_moyen'] as num?)?.toDouble() ?? 0,
+      parTrancheRetard: KpiSeriesPoint.listFrom(m['par_tranche_retard']),
+      topFacturesRetard: KpiSeriesPoint.listFrom(m['top_factures_retard']),
     );
   }
 }
@@ -302,15 +402,36 @@ class AnalyticsFacturationKpi {
   AnalyticsFacturationKpi({
     required this.facturesPeriode,
     required this.montantFactureFcfa,
+    this.caFacture = 0,
+    this.detteTotale = 0,
+    this.facturesRetard = 0,
+    this.tauxRecouvrementPct = 0,
+    this.parStatut = const [],
+    this.tendanceCa = const [],
   });
 
   final int facturesPeriode;
   final double montantFactureFcfa;
+  final double caFacture;
+  final double detteTotale;
+  final int facturesRetard;
+  final double tauxRecouvrementPct;
+  final List<KpiSeriesPoint> parStatut;
+  final List<KpiTrendPoint> tendanceCa;
 
   factory AnalyticsFacturationKpi.fromJson(Map<String, dynamic> m) {
     return AnalyticsFacturationKpi(
       facturesPeriode: (m['factures_periode'] as num?)?.toInt() ?? 0,
-      montantFactureFcfa: (m['montant_facture_fcfa'] as num?)?.toDouble() ?? 0,
+      montantFactureFcfa: (m['montant_facture_fcfa'] as num?)?.toDouble() ??
+          (m['ca_facture'] as num?)?.toDouble() ??
+          0,
+      caFacture: (m['ca_facture'] as num?)?.toDouble() ?? 0,
+      detteTotale: (m['dette_totale'] as num?)?.toDouble() ?? 0,
+      facturesRetard: (m['factures_retard'] as num?)?.toInt() ?? 0,
+      tauxRecouvrementPct:
+          (m['taux_recouvrement_pct'] as num?)?.toDouble() ?? 0,
+      parStatut: KpiSeriesPoint.listFrom(m['par_statut']),
+      tendanceCa: KpiTrendPoint.listFrom(m['tendance_ca']),
     );
   }
 }
@@ -337,17 +458,23 @@ class AnalyticsTachesKpi {
     required this.totalPeriode,
     required this.termineesPeriode,
     required this.tauxCompletionPct,
+    this.enRetard = 0,
+    this.observations = 0,
   });
 
   final int totalPeriode;
   final int termineesPeriode;
   final double tauxCompletionPct;
+  final int enRetard;
+  final int observations;
 
   factory AnalyticsTachesKpi.fromJson(Map<String, dynamic> m) {
     return AnalyticsTachesKpi(
       totalPeriode: (m['total_periode'] as num?)?.toInt() ?? 0,
       termineesPeriode: (m['terminees_periode'] as num?)?.toInt() ?? 0,
       tauxCompletionPct: (m['taux_completion_pct'] as num?)?.toDouble() ?? 0,
+      enRetard: (m['en_retard'] as num?)?.toInt() ?? 0,
+      observations: (m['observations'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -33,6 +33,16 @@ class DemandeAPayer {
     this.montantAttendu,
     this.raisonBonTransport,
     this.justificatifs = const [],
+    this.valideParHierarchie,
+    this.payePar,
+    this.createdAt,
+    this.updatedAt,
+    this.retour,
+    this.montantEspece,
+    this.montantMomo,
+    this.montantOm,
+    this.montantCheque,
+    this.attenteRetourCaisse,
   });
 
   final String id;
@@ -46,6 +56,24 @@ class DemandeAPayer {
   final double? montantAttendu;
   final String? raisonBonTransport;
   final List<DemandeJustificatif> justificatifs;
+  final String? valideParHierarchie;
+  final String? payePar;
+  final String? createdAt;
+  final String? updatedAt;
+  final String? retour;
+  final double? montantEspece;
+  final double? montantMomo;
+  final double? montantOm;
+  final double? montantCheque;
+  final String? attenteRetourCaisse;
+
+  double get montantDonneTotal {
+    var sum = 0.0;
+    for (final v in [montantEspece, montantMomo, montantOm, montantCheque]) {
+      if (v != null) sum += v;
+    }
+    return sum;
+  }
 
   static double _num(dynamic v) {
     if (v == null) return 0;
@@ -83,20 +111,35 @@ class DemandeAPayer {
         if (j != null) pj.add(j);
       }
     }
+    String? str(dynamic v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
+    String? retourStr(dynamic v) {
+      if (v == null || v == '') return null;
+      return '$v';
+    }
+
     return DemandeAPayer(
       id: '${m['id']}',
       client: '${m['client'] ?? ''}',
       raisonBonCommande: '${m['raison_bon_commande'] ?? ''}',
       montantDemande: _num(m['montant_demande']),
-      origine: m['origine'] is String ? (m['origine'] as String).trim() : null,
-      auteur: m['auteur'] is String ? (m['auteur'] as String).trim() : null,
-      statut: m['statut'] is String ? (m['statut'] as String).trim() : null,
+      origine: str(m['origine']),
+      auteur: str(m['auteur']),
+      statut: str(m['statut']),
       dateADecaisser: _dateKey(m['date_a_decaisser']),
       montantAttendu: m['montant_attendu'] != null ? _num(m['montant_attendu']) : null,
-      raisonBonTransport: m['raison_bon_transport'] is String
-          ? (m['raison_bon_transport'] as String).trim()
-          : null,
+      raisonBonTransport: str(m['raison_bon_transport']),
       justificatifs: pj,
+      valideParHierarchie: str(m['valide_par_hierarchie']),
+      payePar: str(m['paye_par']),
+      createdAt: str(m['created_at']),
+      updatedAt: str(m['updated_at']),
+      retour: retourStr(m['retour']),
+      montantEspece: m['montant_espece'] != null ? _num(m['montant_espece']) : null,
+      montantMomo: m['montant_momo'] != null ? _num(m['montant_momo']) : null,
+      montantOm: m['montant_om'] != null ? _num(m['montant_om']) : null,
+      montantCheque: m['montant_cheque'] != null ? _num(m['montant_cheque']) : null,
+      attenteRetourCaisse: str(m['attente_retour_caisse']),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/collaborateur.dart';
 import '../models/demande_rh.dart';
+import '../models/tache.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
@@ -17,14 +18,251 @@ class RhHubScreen extends StatefulWidget {
   State<RhHubScreen> createState() => _RhHubScreenState();
 }
 
-class _RhHubScreenState extends State<RhHubScreen>
+class _RhHubScreenState extends State<RhHubScreen> {
+  String? _selectedCollabId;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (auth.canViewRhExecutiveTabs) {
+      if (_selectedCollabId != null) {
+        return _RhCollaborateurDetailShell(
+          collaborateurId: _selectedCollabId!,
+          onBack: () => setState(() => _selectedCollabId = null),
+        );
+      }
+      return _RhExecutiveShell(
+        onSelectCollaborateur: (id) => setState(() => _selectedCollabId = id),
+      );
+    }
+    return const _RhCollaborateurShell();
+  }
+}
+
+class _RhExecutiveShell extends StatefulWidget {
+  const _RhExecutiveShell({required this.onSelectCollaborateur});
+
+  final ValueChanged<String> onSelectCollaborateur;
+
+  @override
+  State<_RhExecutiveShell> createState() => _RhExecutiveShellState();
+}
+
+class _RhExecutiveShellState extends State<_RhExecutiveShell>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabs;
+  List<CollaborateurLite> _collaborateurs = [];
+  String _search = '';
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final list = await context.read<AuthProvider>().api.listCollaborateursLite();
+      if (!mounted) return;
+      setState(() {
+        _collaborateurs = list;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _search.trim().toLowerCase();
+    final filtered = _collaborateurs.where((c) {
+      if (q.isEmpty) return true;
+      return c.fullName.toLowerCase().contains(q);
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: AromaColors.canvas,
+      appBar: AppBar(
+        title: const Text('Espace RH — Direction'),
+        actions: const [EntityScopeAppBarAction()],
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(text: 'Mes collaborateurs'),
+            Tab(text: 'Mes demandes'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Rechercher collaborateur…',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onChanged: (v) => setState(() => _search = v),
+                      ),
+                    ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _load,
+                        child: filtered.isEmpty
+                            ? ListView(
+                                children: const [
+                                  SizedBox(height: 80),
+                                  Center(
+                                    child: Text('Aucun collaborateur.'),
+                                  ),
+                                ],
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: filtered.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, i) {
+                                  final c = filtered[i];
+                                  return Card(
+                                    child: ListTile(
+                                      leading: CircleAvatar(
+                                        child: Text(
+                                          c.prenom.isNotEmpty
+                                              ? c.prenom[0].toUpperCase()
+                                              : '?',
+                                        ),
+                                      ),
+                                      title: Text(c.fullName),
+                                      trailing: const Icon(Icons.chevron_right),
+                                      onTap: () =>
+                                          widget.onSelectCollaborateur(c.id),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+          const _RhDemandesTab(executiveAll: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _RhCollaborateurDetailShell extends StatefulWidget {
+  const _RhCollaborateurDetailShell({
+    required this.collaborateurId,
+    required this.onBack,
+  });
+
+  final String collaborateurId;
+  final VoidCallback onBack;
+
+  @override
+  State<_RhCollaborateurDetailShell> createState() =>
+      _RhCollaborateurDetailShellState();
+}
+
+class _RhCollaborateurDetailShellState extends State<_RhCollaborateurDetailShell>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabs;
+  String _name = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 5, vsync: this);
+    _loadName();
+  }
+
+  Future<void> _loadName() async {
+    try {
+      final c = await context.read<AuthProvider>().api.getCollaborateur(
+        widget.collaborateurId,
+      );
+      if (!mounted) return;
+      setState(() => _name = c.fullName);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AromaColors.canvas,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onBack,
+        ),
+        title: Text(_name.isEmpty ? 'Collaborateur' : _name),
+        actions: const [EntityScopeAppBarAction()],
+        bottom: TabBar(
+          controller: _tabs,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Profil'),
+            Tab(text: 'Récap'),
+            Tab(text: 'Demandes'),
+            Tab(text: 'Présence'),
+            Tab(text: 'Documents'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _RhProfilTab(collaborateurId: widget.collaborateurId),
+          RhRecapScreen(
+            embedded: true,
+            collaborateurId: widget.collaborateurId,
+          ),
+          _RhDemandesTab(collaborateurId: widget.collaborateurId),
+          _RhPresenceTab(collaborateurId: widget.collaborateurId),
+          _RhDocumentsTab(collaborateurId: widget.collaborateurId),
+        ],
+      ),
+    );
+  }
+}
+
+class _RhCollaborateurShell extends StatefulWidget {
+  const _RhCollaborateurShell();
+
+  @override
+  State<_RhCollaborateurShell> createState() => _RhCollaborateurShellState();
+}
+
+class _RhCollaborateurShellState extends State<_RhCollaborateurShell>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -42,10 +280,13 @@ class _RhHubScreenState extends State<RhHubScreen>
         actions: const [EntityScopeAppBarAction()],
         bottom: TabBar(
           controller: _tabs,
+          isScrollable: true,
           tabs: const [
             Tab(text: 'Mon profil'),
             Tab(text: 'Mon récap'),
             Tab(text: 'Mes demandes'),
+            Tab(text: 'Présence'),
+            Tab(text: 'Documents'),
           ],
         ),
       ),
@@ -55,6 +296,8 @@ class _RhHubScreenState extends State<RhHubScreen>
           _RhProfilTab(),
           RhRecapScreen(embedded: true),
           _RhDemandesTab(),
+          _RhPresenceTab(),
+          _RhDocumentsTab(),
         ],
       ),
     );
@@ -62,7 +305,9 @@ class _RhHubScreenState extends State<RhHubScreen>
 }
 
 class _RhProfilTab extends StatefulWidget {
-  const _RhProfilTab();
+  const _RhProfilTab({this.collaborateurId});
+
+  final String? collaborateurId;
 
   @override
   State<_RhProfilTab> createState() => _RhProfilTabState();
@@ -82,7 +327,7 @@ class _RhProfilTabState extends State<_RhProfilTab>
 
   Future<void> _reload() async {
     final auth = context.read<AuthProvider>();
-    final id = auth.collaborateurId;
+    final id = widget.collaborateurId ?? auth.collaborateurId;
     if (id == null) {
       setState(() {
         _loading = false;
@@ -255,7 +500,10 @@ class _InfoRow {
 }
 
 class _RhDemandesTab extends StatefulWidget {
-  const _RhDemandesTab();
+  const _RhDemandesTab({this.collaborateurId, this.executiveAll = false});
+
+  final String? collaborateurId;
+  final bool executiveAll;
 
   @override
   State<_RhDemandesTab> createState() => _RhDemandesTabState();
@@ -281,8 +529,14 @@ class _RhDemandesTabState extends State<_RhDemandesTab>
     try {
       final list = await context.read<AuthProvider>().api.listDemandesRh();
       if (!mounted) return;
+      var filtered = list;
+      if (widget.collaborateurId != null && !widget.executiveAll) {
+        filtered = list
+            .where((d) => d.idCollaborateur == widget.collaborateurId)
+            .toList();
+      }
       setState(() {
-        _demandes = list;
+        _demandes = filtered;
         _loading = false;
       });
     } catch (e) {
@@ -355,6 +609,7 @@ class _RhDemandesTabState extends State<_RhDemandesTab>
                           const SizedBox(height: 8),
                       itemBuilder: (context, i) {
                         final d = _demandes[i];
+                        final auth = context.watch<AuthProvider>();
                         return Card(
                           child: ListTile(
                             title: Text(labelTypeDemande(d.type)),
@@ -368,26 +623,213 @@ class _RhDemandesTabState extends State<_RhDemandesTab>
                                   Text(d.motif!),
                               ],
                             ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  labelStatutDemande(d.statut),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
+                            trailing: auth.canValidateRhDemande &&
+                                    d.statut == 'en_attente'
+                                ? PopupMenuButton<String>(
+                                    onSelected: (v) async {
+                                      try {
+                                        await auth.api.patchDemandeRh(
+                                          d.id,
+                                          {'statut': v},
+                                        );
+                                        await _reload();
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(content: Text('$e')),
+                                        );
+                                      }
+                                    },
+                                    itemBuilder: (ctx) => const [
+                                      PopupMenuItem(
+                                        value: 'approuve',
+                                        child: Text('Approuver'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'rejete',
+                                        child: Text('Rejeter'),
+                                      ),
+                                    ],
+                                    child: Text(
+                                      labelStatutDemande(d.statut),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        labelStatutDemande(d.statut),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      if (d.montant != null && d.montant! > 0)
+                                        Text(fmtFcfa(d.montant)),
+                                    ],
                                   ),
-                                ),
-                                if (d.montant != null && d.montant! > 0)
-                                  Text(fmtFcfa(d.montant)),
-                              ],
-                            ),
                           ),
                         );
                       },
                     ),
             ),
+    );
+  }
+}
+
+class _RhPresenceTab extends StatefulWidget {
+  const _RhPresenceTab({this.collaborateurId});
+
+  final String? collaborateurId;
+
+  @override
+  State<_RhPresenceTab> createState() => _RhPresenceTabState();
+}
+
+class _RhPresenceTabState extends State<_RhPresenceTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  List<Map<String, dynamic>> _rows = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() => _loading = true);
+    try {
+      final auth = context.read<AuthProvider>();
+      final collabId = widget.collaborateurId ??
+          (auth.isPrivilegedStaff ? null : auth.collaborateurId);
+      final rows = await auth.api.listPresence(collaborateurId: collabId);
+      if (!mounted) return;
+      setState(() {
+        _rows = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_rows.isEmpty) {
+      return const Center(
+        child: Text(
+          'Aucune donnée de présence.',
+          style: TextStyle(color: AromaColors.zinc500),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _rows.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, i) {
+        final r = _rows[i];
+        final date = '${r['date'] ?? ''}';
+        final absence = r['absence'] == true;
+        final retard = r['retard'] == true;
+        return Card(
+          child: ListTile(
+            title: Text(formatDateFr(date)),
+            subtitle: Text(
+              absence
+                  ? 'Absence'
+                  : retard
+                  ? 'Retard'
+                  : 'Présent',
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RhDocumentsTab extends StatefulWidget {
+  const _RhDocumentsTab({this.collaborateurId});
+
+  final String? collaborateurId;
+
+  @override
+  State<_RhDocumentsTab> createState() => _RhDocumentsTabState();
+}
+
+class _RhDocumentsTabState extends State<_RhDocumentsTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  List<Map<String, dynamic>> _docs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    final collabId = widget.collaborateurId ??
+        context.read<AuthProvider>().collaborateurId;
+    if (collabId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final docs = await context.read<AuthProvider>().api.listDocumentRh(
+        collabId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _docs = docs;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_docs.isEmpty) {
+      return const Center(
+        child: Text(
+          'Aucun document RH.',
+          style: TextStyle(color: AromaColors.zinc500),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _docs.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, i) {
+        final d = _docs[i];
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: Text('${d['type_document'] ?? d['nom_fichier'] ?? 'Document'}'),
+            subtitle: Text(formatDateFr('${d['date_upload'] ?? ''}')),
+          ),
+        );
+      },
     );
   }
 }

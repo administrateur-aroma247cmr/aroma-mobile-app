@@ -121,6 +121,59 @@ class RecapComptable {
   }
 }
 
+class RecouvrementDetail {
+  RecouvrementDetail({
+    required this.id,
+    this.idFacture,
+    this.nombreRelances,
+    this.dateDerniereRelance,
+    this.assigneNom,
+    this.relanceMailMessage,
+    this.relanceWhatsappMessage,
+    this.relanceTelephoneMessage,
+    this.actionsTrace = const [],
+  });
+
+  final String id;
+  final String? idFacture;
+  final int? nombreRelances;
+  final String? dateDerniereRelance;
+  final String? assigneNom;
+  final String? relanceMailMessage;
+  final String? relanceWhatsappMessage;
+  final String? relanceTelephoneMessage;
+  final List<Map<String, dynamic>> actionsTrace;
+
+  factory RecouvrementDetail.fromJson(Map<String, dynamic> m) {
+    final trace = <Map<String, dynamic>>[];
+    final raw = m['actions_trace'];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map) trace.add(Map<String, dynamic>.from(e));
+      }
+    }
+    return RecouvrementDetail(
+      id: '${m['id']}',
+      idFacture: m['id_facture']?.toString(),
+      nombreRelances: (m['nombre_relances'] as num?)?.toInt(),
+      dateDerniereRelance: m['date_derniere_relance'] is String
+          ? m['date_derniere_relance'] as String
+          : null,
+      assigneNom: m['assigne_nom'] is String ? m['assigne_nom'] as String : null,
+      relanceMailMessage: m['relance_mail_message'] is String
+          ? m['relance_mail_message'] as String
+          : null,
+      relanceWhatsappMessage: m['relance_whatsapp_message'] is String
+          ? m['relance_whatsapp_message'] as String
+          : null,
+      relanceTelephoneMessage: m['relance_telephone_message'] is String
+          ? m['relance_telephone_message'] as String
+          : null,
+      actionsTrace: trace,
+    );
+  }
+}
+
 class RecouvrementKpiBundle {
   RecouvrementKpiBundle({
     required this.page,

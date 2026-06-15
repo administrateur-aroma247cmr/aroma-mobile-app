@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../screens/caisse_screen.dart';
 import '../screens/kpi_screen.dart';
-import '../screens/recouvrement_screen.dart';
+import '../screens/comptabilite_screen.dart';
 import '../screens/rh_hub_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../theme/aroma_theme.dart';
@@ -73,16 +73,16 @@ class HomeScreen extends StatelessWidget {
           icon: Icons.groups_outlined,
           onTap: () => _openModule(context, const RhHubScreen()),
         ),
-      if (auth.canShowHomeModule('recouvrement'))
+      if (auth.canShowHomeModule('compta'))
         _HomeModule(
-          title: 'Recouvrement',
+          title: 'Ma comptabilité',
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF0D9488), Color(0xFF0891B2)],
+            colors: [Color(0xFF059669), Color(0xFF0D9488)],
           ),
-          icon: Icons.savings_outlined,
-          onTap: () => _openModule(context, const RecouvrementScreen()),
+          icon: Icons.calculate_outlined,
+          onTap: () => _openModule(context, const ComptabiliteScreen()),
         ),
       if (auth.canShowHomeModule('caisse'))
         _HomeModule(

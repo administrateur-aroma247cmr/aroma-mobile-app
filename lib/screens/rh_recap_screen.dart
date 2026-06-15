@@ -9,9 +9,14 @@ import '../utils/format_utils.dart';
 import '../widgets/entity_scope_selector.dart';
 
 class RhRecapScreen extends StatefulWidget {
-  const RhRecapScreen({super.key, this.embedded = false});
+  const RhRecapScreen({
+    super.key,
+    this.embedded = false,
+    this.collaborateurId,
+  });
 
   final bool embedded;
+  final String? collaborateurId;
 
   @override
   State<RhRecapScreen> createState() => _RhRecapScreenState();
@@ -35,8 +40,8 @@ class _RhRecapScreenState extends State<RhRecapScreen>
 
   Future<void> _init() async {
     final auth = context.read<AuthProvider>();
-    _selectedCollabId = auth.collaborateurId;
-    if (auth.isPrivilegedStaff) {
+    _selectedCollabId = widget.collaborateurId ?? auth.collaborateurId;
+    if (auth.isPrivilegedStaff && widget.collaborateurId == null) {
       try {
         _collaborateurs = await auth.api.listCollaborateursLite();
         if (_selectedCollabId == null && _collaborateurs.isNotEmpty) {

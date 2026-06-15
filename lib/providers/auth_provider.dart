@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/caisse_metrics.dart';
 import '../services/aroma_api.dart';
 import '../services/entity_store.dart';
 import '../services/token_store.dart';
 import '../utils/auth_roles.dart';
 import '../utils/entity_scope.dart';
+import '../utils/module_access.dart' as mod;
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({TokenStore? tokenStore, EntityStore? entityStore})
@@ -105,14 +107,66 @@ class AuthProvider extends ChangeNotifier {
         privilegedStaff: isPrivilegedStaff,
       );
 
-  bool canShowHomeModule(String moduleId) {
-    if (isOpenToAllModule(moduleId)) return true;
-    if (moduleId == 'validation') return isPrivilegedStaff;
-    if (moduleId == 'recouvrement') {
-      return isPrivilegedStaff || canAccess('comptabilite');
+  String? get userEmail {
+    final e = _me?['email'];
+    if (e is String && e.trim().isNotEmpty) {
+      return e.trim().toLowerCase();
     }
-    return false;
+    return null;
   }
+
+  bool canShowHomeModule(String moduleId) => mod.canShowHomeModuleTile(
+        moduleId,
+        isPrivilegedStaff: isPrivilegedStaff,
+        canAccessComptabilite: canAccess('comptabilite'),
+      );
+
+  bool get canCreateTache => mod.canCreateTache(
+        isPrivilegedStaff: isPrivilegedStaff,
+        canModifyTasks: canModify('tasks'),
+      );
+
+  bool get canDeleteTache => mod.canDeleteTache(
+        isPrivilegedStaff: isPrivilegedStaff,
+      );
+
+  bool get canEditTache => mod.canEditTacheContent(
+        isPrivilegedStaff: isPrivilegedStaff,
+        canModifyTasks: canModify('tasks'),
+        canViewAllTaches: canViewAllTaches,
+      );
+
+  bool get canCreateCaisseDemande =>
+      mod.canCreateCaisseDemande(canModifyCaisse: canModify('caisse'));
+
+  bool canAccessCaisseMaPage(MaCaisseAccess? access) =>
+      mod.canAccessCaisseMaPage(
+        isCaisseMaPageDirection: isCaisseMaPageDirection,
+        isDesignatedCaissier: access?.isDesignatedCaissier == true,
+        isDesignatedSuperviseurFermeture:
+            access?.isDesignatedSuperviseurFermetureDraft == true,
+      );
+
+  bool get canValidateRhDemande => mod.canValidateRhDemande(
+        isPrivilegedStaff: isPrivilegedStaff,
+      );
+
+  bool get canEditRecouvrement => mod.canEditRecouvrement(
+        isPrivilegedStaff: isPrivilegedStaff,
+        canAccessComptabilite: canAccess('comptabilite'),
+        canModifyComptabilite: canModify('comptabilite'),
+      );
+
+  bool get canViewRhExecutiveTabs => mod.canViewRhExecutiveTabs(
+        isExecutive: isExecutive,
+        role: role,
+      );
+
+  bool canDeleteGalerieFile({required bool isUploader}) =>
+      mod.canDeleteGalerieFile(
+        isExecutive: isExecutive,
+        isUploader: isUploader,
+      );
 
   /// Création demande RH / absence (collaborateur, pas direction exécutive).
   bool get canCreateRhDemande {

@@ -12,11 +12,10 @@ import '../theme/aroma_theme.dart';
 
 /// Aligné sur le CRM web (rôle privilégié ou auteur de l’upload).
 bool _galerieFileCanDelete(AuthProvider auth, GalerieFichier f) {
-  if (auth.isPrivilegedStaff) return true;
   final myId = auth.me?['id']?.toString();
   final up = f.uploadedByUserId;
-  if (myId != null && up != null && up == myId) return true;
-  return false;
+  final isUploader = myId != null && up != null && up == myId;
+  return auth.canDeleteGalerieFile(isUploader: isUploader);
 }
 
 enum _GallerySort { nameAsc, nameDesc, newest, oldest }
