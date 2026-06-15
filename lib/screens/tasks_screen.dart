@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/client_lite.dart';
 import '../models/tache.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../widgets/entity_scope_selector.dart';
-import '../models/client_lite.dart';
 import '../widgets/task_form_sheet.dart';
+import '../widgets/modern_select_field.dart';
+import '../widgets/tasks/task_card_modern.dart';
+import '../widgets/tasks/task_detail_sheet.dart';
+import '../widgets/tasks/task_ui.dart';
 import '../widgets/tasks_recap_tab.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -17,35 +21,36 @@ class TasksScreen extends StatefulWidget {
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
-class _TasksScreenState extends State<TasksScreen>
-    with SingleTickerProviderStateMixin, EntityScopeReloadMixin {
-  TabController? _tabs;
+class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
   bool _loading = true;
   String? _error;
   List<Tache> _tasks = [];
   List<CollaborateurLite> _collaborateurs = [];
   List<ClientLite> _clients = [];
   String _search = '';
+  bool _searchExpanded = false;
+  final _searchFocus = FocusNode();
+  int _tabIndex = 0;
   String _recapMonth = currentMonthIso();
   String? _recapCollabFilter;
   String? _executiveCollabFilter;
 
+  static const _tabs = [
+    _TaskTab('En cours', Icons.play_circle_outline_rounded),
+    _TaskTab('Sélectionnées', Icons.bookmark_outline_rounded),
+    _TaskTab('Terminées', Icons.check_circle_outline_rounded),
+    _TaskTab('Historique', Icons.history_rounded),
+  ];
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initTabs());
-  }
-
-  void _initTabs() {
-    if (!mounted) return;
-    final len = context.read<AuthProvider>().canViewCollaborateurRecaps ? 5 : 4;
-    _tabs = TabController(length: len, vsync: this);
     _reload();
   }
 
   @override
   void dispose() {
-    _tabs?.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -100,36 +105,30 @@ class _TasksScreenState extends State<TasksScreen>
     if (ids.isEmpty) return '—';
     final names = <String>[];
     for (final id in ids) {
-      CollaborateurLite? match;
       for (final c in _collaborateurs) {
         if (c.id == id) {
-          match = c;
+          names.add(c.fullName);
           break;
         }
       }
-      if (match != null) names.add(match.fullName);
     }
     return names.isEmpty ? '—' : names.join(', ');
   }
 
-  List<Tache> _filtered(int tabIndex) {
+  List<Tache> _filteredForTab(int tabIndex) {
     Iterable<Tache> list = _tasks;
-    final auth = context.read<AuthProvider>();
     switch (tabIndex) {
       case 1:
         list = list.where((t) => t.isSelectionnee && !t.isTerminee);
         break;
       case 2:
-        list = list.where((t) => t.isTerminee);
-        break;
       case 3:
         list = list.where((t) => t.isTerminee);
         break;
-      case 4:
-        return const [];
       default:
         list = list.where((t) => !t.isTerminee);
     }
+    final auth = context.read<AuthProvider>();
     if (_executiveCollabFilter != null && auth.canViewAllTaches) {
       final id = _executiveCollabFilter!;
       list = list.where((t) {
@@ -144,15 +143,25 @@ class _TasksScreenState extends State<TasksScreen>
       list = list.where(
         (t) =>
             t.nomTache.toLowerCase().contains(q) ||
-            (t.description ?? '').toLowerCase().contains(q),
+            (t.description ?? '').toLowerCase().contains(q) ||
+            _clientLabel(t).toLowerCase().contains(q),
       );
     }
     return list.toList()
       ..sort((a, b) {
-        final da = a.dateButoire ?? '';
-        final db = b.dateButoire ?? '';
-        return da.compareTo(db);
+        final oa = TaskUi.isOverdue(a);
+        final ob = TaskUi.isOverdue(b);
+        if (oa != ob) return oa ? -1 : 1;
+        return (a.dateButoire ?? '').compareTo(b.dateButoire ?? '');
       });
+  }
+
+  ({int active, int overdue, int starred}) get _stats {
+    final active = _tasks.where((t) => !t.isTerminee).length;
+    final overdue = _tasks.where((t) => TaskUi.isOverdue(t)).length;
+    final starred =
+        _tasks.where((t) => t.isSelectionnee && !t.isTerminee).length;
+    return (active: active, overdue: overdue, starred: starred);
   }
 
   Future<void> _toggleDone(Tache t) async {
@@ -203,7 +212,7 @@ class _TasksScreenState extends State<TasksScreen>
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => TaskFormSheet(
         tache: tache,
         collaborateurs: _collaborateurs,
@@ -219,7 +228,11 @@ class _TasksScreenState extends State<TasksScreen>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Supprimer la tâche ?'),
+        content: Text(
+          '« ${t.nomTache} » sera définitivement supprimée.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -227,6 +240,9 @@ class _TasksScreenState extends State<TasksScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
             child: const Text('Supprimer'),
           ),
         ],
@@ -268,134 +284,248 @@ class _TasksScreenState extends State<TasksScreen>
     }
   }
 
+  void _openDetail(Tache t) {
+    final auth = context.read<AuthProvider>();
+    showTaskDetailSheet(
+      context,
+      tache: t,
+      client: _clientLabel(t),
+      assignee: _assigneeLabel(t),
+      superviseur: _superviseurLabel(t),
+      canEdit: auth.canEditTache,
+      canDelete: auth.canDeleteTache,
+      onEdit: () => _openForm(tache: t),
+      onDelete: () => _deleteTask(t),
+      onToggleDone: () => _toggleDone(t),
+      onToggleSelection: () => _toggleSelection(t),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     watchEntityScope(_reload);
     final auth = context.watch<AuthProvider>();
+    final stats = _stats;
+    final showRecap = auth.canViewCollaborateurRecaps;
+    final isRecapTab = showRecap && _tabIndex == 4;
+
     return Scaffold(
       backgroundColor: AromaColors.canvas,
-      appBar: AppBar(
-        title: const Text('Mes tâches'),
-        actions: const [EntityScopeAppBarAction()],
-        bottom: _tabs == null
-            ? null
-            : TabBar(
-                controller: _tabs!,
-                isScrollable: true,
-                tabs: [
-                  const Tab(text: 'En cours'),
-                  const Tab(text: 'Sélectionnées'),
-                  const Tab(text: 'Terminées'),
-                  const Tab(text: 'Historique'),
-                  if (auth.canViewCollaborateurRecaps)
-                    const Tab(text: 'Mon récap'),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _TasksHeader(
+              searchExpanded: _searchExpanded,
+              searchFocus: _searchFocus,
+              onSearchToggle: () {
+                setState(() {
+                  _searchExpanded = !_searchExpanded;
+                  if (_searchExpanded) {
+                    _searchFocus.requestFocus();
+                  } else {
+                    _search = '';
+                    _searchFocus.unfocus();
+                  }
+                });
+              },
+              onSearchChanged: (v) => setState(() => _search = v),
+              stats: stats,
+            ),
+            const SizedBox(height: 8),
+            _TabPills(
+              tabs: _tabs,
+              showRecap: showRecap,
+              selectedIndex: _tabIndex,
+              counts: [
+                _tasks.where((t) => !t.isTerminee).length,
+                stats.starred,
+                _tasks.where((t) => t.isTerminee).length,
+                _tasks.where((t) => t.isTerminee).length,
+              ],
+              onSelected: (i) => setState(() => _tabIndex = i),
+            ),
+            if (!isRecapTab &&
+                auth.canViewAllTaches &&
+                _collaborateurs.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: _CollaborateurFilter(
+                  collaborateurs: _collaborateurs,
+                  value: _executiveCollabFilter,
+                  onChanged: (v) => setState(() => _executiveCollabFilter = v),
+                ),
+              ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? _ErrorState(message: _error!, onRetry: _reload)
+                  : isRecapTab
+                  ? TasksRecapTab(
+                      tasks: _tasks,
+                      collaborateurs: _collaborateurs,
+                      currentCollaborateurId: auth.collaborateurId,
+                      isExecutive: auth.canViewAllTaches,
+                      monthKey: _recapMonth,
+                      onMonthChanged: (m) => setState(() => _recapMonth = m),
+                      selectedCollaborateurId: _recapCollabFilter,
+                      onCollaborateurChanged: (v) =>
+                          setState(() => _recapCollabFilter = v),
+                    )
+                  : _TaskList(
+                      items: _filteredForTab(_tabIndex),
+                      tabIndex: _tabIndex,
+                      canCreate: auth.canCreateTache,
+                      clientLabel: _clientLabel,
+                      assigneeLabel: _assigneeLabel,
+                      superviseurLabel: _superviseurLabel,
+                      onRefresh: _reload,
+                      onTap: _openDetail,
+                      onToggleDone: _toggleDone,
+                      onToggleSelection: _toggleSelection,
+                      onCreate: () => _openForm(),
+                    ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: auth.canCreateTache && !isRecapTab
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: TaskUi.gradient,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: TaskUi.accent.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
                 ],
               ),
-      ),
-      floatingActionButton: auth.canCreateTache
-          ? FloatingActionButton.extended(
-              onPressed: () => _openForm(),
-              icon: const Icon(Icons.add),
-              label: const Text('Nouvelle tâche'),
+              child: FloatingActionButton.extended(
+                onPressed: () => _openForm(),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                highlightElevation: 0,
+                icon: const Icon(Icons.add_rounded, color: Colors.white),
+                label: const Text(
+                  'Nouvelle tâche',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             )
           : null,
-      body: Column(
+    );
+  }
+}
+
+class _TaskTab {
+  const _TaskTab(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
+class _TasksHeader extends StatelessWidget {
+  const _TasksHeader({
+    required this.searchExpanded,
+    required this.searchFocus,
+    required this.onSearchToggle,
+    required this.onSearchChanged,
+    required this.stats,
+  });
+
+  final bool searchExpanded;
+  final FocusNode searchFocus;
+  final VoidCallback onSearchToggle;
+  final ValueChanged<String> onSearchChanged;
+  final ({int active, int overdue, int starred}) stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_tabs != null && _tabs!.index < 4)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Column(
-                children: [
-                  TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Rechercher une tâche…',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (v) => setState(() => _search = v),
-                  ),
-                  if (auth.canViewAllTaches && _collaborateurs.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String?>(
-                      decoration: const InputDecoration(
-                        labelText: 'Filtrer par collaborateur',
-                        isDense: true,
-                      ),
-                      value: _executiveCollabFilter,
-                      items: [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('Tous'),
-                        ),
-                        ..._collaborateurs.map(
-                          (c) => DropdownMenuItem(
-                            value: c.id,
-                            child: Text(c.fullName),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mes tâches',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
                           ),
-                        ),
-                      ],
-                      onChanged: (v) => setState(() => _executiveCollabFilter = v),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${stats.active} en cours'
+                      '${stats.overdue > 0 ? ' · ${stats.overdue} en retard' : ''}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AromaColors.zinc500,
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
+              const EntityScopeAppBarAction(),
+              IconButton(
+                onPressed: onSearchToggle,
+                icon: Icon(
+                  searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                ),
+              ),
+            ],
+          ),
+          if (searchExpanded) ...[
+            const SizedBox(height: 8),
+            TextField(
+              focusNode: searchFocus,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Tâche, client, description…',
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: AromaColors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: onSearchChanged,
             ),
-          Expanded(
-            child: _tabs == null || _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                ? _ErrorState(message: _error!, onRetry: _reload)
-                : TabBarView(
-                    controller: _tabs!,
-                    children: [
-                      ...List.generate(4, (i) {
-                        final items = _filtered(i);
-                        if (items.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Aucune tâche.',
-                              style: TextStyle(color: AromaColors.zinc500),
-                            ),
-                          );
-                        }
-                        return RefreshIndicator(
-                          onRefresh: _reload,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: items.length,
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final t = items[index];
-                              return _TaskCard(
-                                tache: t,
-                                assignee: _assigneeLabel(t),
-                                client: _clientLabel(t),
-                                superviseur: _superviseurLabel(t),
-                                canEdit: auth.canEditTache,
-                                canDelete: auth.canDeleteTache,
-                                onToggleDone: () => _toggleDone(t),
-                                onToggleSelection: () => _toggleSelection(t),
-                                onEdit: () => _openForm(tache: t),
-                                onDelete: () => _deleteTask(t),
-                              );
-                            },
-                          ),
-                        );
-                      }),
-                      if (auth.canViewCollaborateurRecaps)
-                        TasksRecapTab(
-                          tasks: _tasks,
-                          collaborateurs: _collaborateurs,
-                          currentCollaborateurId: auth.collaborateurId,
-                          isExecutive: auth.canViewAllTaches,
-                          monthKey: _recapMonth,
-                          onMonthChanged: (m) => setState(() => _recapMonth = m),
-                          selectedCollaborateurId: _recapCollabFilter,
-                          onCollaborateurChanged: (v) =>
-                              setState(() => _recapCollabFilter = v),
-                        ),
-                    ],
-                  ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _StatPill(
+                label: 'Actives',
+                value: '${stats.active}',
+                color: TaskUi.accent,
+              ),
+              const SizedBox(width: 8),
+              _StatPill(
+                label: 'Retard',
+                value: '${stats.overdue}',
+                color: stats.overdue > 0
+                    ? const Color(0xFFDC2626)
+                    : AromaColors.zinc500,
+              ),
+              const SizedBox(width: 8),
+              _StatPill(
+                label: 'Sélection',
+                value: '${stats.starred}',
+                color: const Color(0xFF059669),
+              ),
+            ],
           ),
         ],
       ),
@@ -403,143 +533,46 @@ class _TasksScreenState extends State<TasksScreen>
   }
 }
 
-class _TaskCard extends StatelessWidget {
-  const _TaskCard({
-    required this.tache,
-    required this.assignee,
-    required this.client,
-    required this.superviseur,
-    required this.canEdit,
-    required this.canDelete,
-    required this.onToggleDone,
-    required this.onToggleSelection,
-    required this.onEdit,
-    required this.onDelete,
+class _StatPill extends StatelessWidget {
+  const _StatPill({
+    required this.label,
+    required this.value,
+    required this.color,
   });
 
-  final Tache tache;
-  final String assignee;
-  final String client;
-  final String superviseur;
-  final bool canEdit;
-  final bool canDelete;
-  final VoidCallback onToggleDone;
-  final VoidCallback onToggleSelection;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  Color _priorityColor() {
-    return switch (tache.priorite) {
-      'Haute' => Colors.red.shade700,
-      'Basse' => Colors.blue.shade600,
-      _ => Colors.orange.shade700,
-    };
-  }
+  final String label;
+  final String value;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AromaColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4E4E7)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    tache.nomTache,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: tache.isSelectionnee
-                      ? 'Retirer des sélectionnées'
-                      : 'Ajouter aux sélectionnées',
-                  onPressed: onToggleSelection,
-                  icon: Icon(
-                    tache.isSelectionnee
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    color: tache.isSelectionnee
-                        ? Colors.amber.shade700
-                        : AromaColors.zinc500,
-                  ),
-                ),
-                if (canEdit || canDelete)
-                  PopupMenuButton<String>(
-                    onSelected: (v) {
-                      if (v == 'edit') onEdit();
-                      if (v == 'delete') onDelete();
-                    },
-                    itemBuilder: (ctx) => [
-                      if (canEdit)
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Text('Modifier'),
-                        ),
-                      if (canDelete)
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Supprimer'),
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-            if ((tache.description ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                tache.description!.trim(),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AromaColors.zinc500),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: color,
+                height: 1,
               ),
-            ],
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                _Chip(
-                  label: tache.priorite ?? 'Moyenne',
-                  color: _priorityColor(),
-                ),
-                _Chip(
-                  label: formatDateFr(tache.dateButoire),
-                  color: AromaColors.zinc800,
-                ),
-                if (tache.categorie != null && tache.categorie!.isNotEmpty)
-                  _Chip(label: tache.categorie!, color: Colors.indigo),
-              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 2),
             Text(
-              'Client : $client',
-              style: const TextStyle(fontSize: 13, color: AromaColors.zinc500),
-            ),
-            Text(
-              'Assigné à : $assignee',
-              style: const TextStyle(fontSize: 13, color: AromaColors.zinc500),
-            ),
-            Text(
-              'Superviseur : $superviseur',
-              style: const TextStyle(fontSize: 13, color: AromaColors.zinc500),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onToggleDone,
-                icon: Icon(
-                  tache.isTerminee
-                      ? Icons.replay_rounded
-                      : Icons.check_circle_outline,
-                ),
-                label: Text(tache.isTerminee ? 'Rouvrir' : 'Terminer'),
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AromaColors.zinc500,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -549,27 +582,248 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.color});
+class _TabPills extends StatelessWidget {
+  const _TabPills({
+    required this.tabs,
+    required this.showRecap,
+    required this.selectedIndex,
+    required this.counts,
+    required this.onSelected,
+  });
 
-  final String label;
-  final Color color;
+  final List<_TaskTab> tabs;
+  final bool showRecap;
+  final int selectedIndex;
+  final List<int> counts;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+    final total = tabs.length + (showRecap ? 1 : 0);
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: total,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          if (showRecap && i == total - 1) {
+            return _Pill(
+              label: 'Récap',
+              icon: Icons.insights_outlined,
+              selected: selectedIndex == i,
+              count: null,
+              onTap: () => onSelected(i),
+            );
+          }
+          final tab = tabs[i];
+          return _Pill(
+            label: tab.label,
+            icon: tab.icon,
+            selected: selectedIndex == i,
+            count: i < counts.length ? counts[i] : null,
+            onTap: () => onSelected(i),
+          );
+        },
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: color,
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    this.count,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final int? count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: selected ? TaskUi.gradient : null,
+            color: selected ? null : AromaColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected ? Colors.transparent : const Color(0xFFE4E4E7),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: TaskUi.accent.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected ? Colors.white : AromaColors.zinc500,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AromaColors.zinc800,
+                ),
+              ),
+              if (count != null && count! > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : AromaColors.zinc100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : AromaColors.zinc800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _CollaborateurFilter extends StatelessWidget {
+  const _CollaborateurFilter({
+    required this.collaborateurs,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<CollaborateurLite> collaborateurs;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ModernSelectField<String?>(
+      label: 'Filtrer par collaborateur',
+      hint: 'Tous les collaborateurs',
+      leadingIcon: Icons.person_search_rounded,
+      allowClear: true,
+      clearLabel: 'Tous les collaborateurs',
+      value: value,
+      options: collaborateurs
+          .map(
+            (c) => ModernSelectOption<String?>(
+              value: c.id,
+              label: c.fullName,
+              icon: Icons.person_rounded,
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _TaskList extends StatelessWidget {
+  const _TaskList({
+    required this.items,
+    required this.tabIndex,
+    required this.canCreate,
+    required this.clientLabel,
+    required this.assigneeLabel,
+    required this.superviseurLabel,
+    required this.onRefresh,
+    required this.onTap,
+    required this.onToggleDone,
+    required this.onToggleSelection,
+    required this.onCreate,
+  });
+
+  final List<Tache> items;
+  final int tabIndex;
+  final bool canCreate;
+  final String Function(Tache) clientLabel;
+  final String Function(Tache) assigneeLabel;
+  final String Function(Tache) superviseurLabel;
+  final Future<void> Function() onRefresh;
+  final void Function(Tache) onTap;
+  final Future<void> Function(Tache) onToggleDone;
+  final Future<void> Function(Tache) onToggleSelection;
+  final VoidCallback onCreate;
+
+  String get _emptyTitle => switch (tabIndex) {
+        1 => 'Aucune tâche sélectionnée',
+        2 => 'Aucune tâche terminée',
+        3 => 'Historique vide',
+        _ => 'Aucune tâche en cours',
+      };
+
+  String? get _emptySubtitle => switch (tabIndex) {
+        0 when canCreate => 'Créez votre première tâche pour commencer.',
+        1 => 'Marquez des tâches avec le signet pour les retrouver ici.',
+        _ => null,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return TaskEmptyState(
+        title: _emptyTitle,
+        subtitle: _emptySubtitle,
+        actionLabel: tabIndex == 0 && canCreate ? 'Nouvelle tâche' : null,
+        onAction: tabIndex == 0 && canCreate ? onCreate : null,
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      color: TaskUi.accent,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
+        itemCount: items.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final t = items[index];
+          return TaskCardModern(
+            tache: t,
+            client: clientLabel(t),
+            assignee: assigneeLabel(t),
+            superviseur: superviseurLabel(t),
+            onTap: () => onTap(t),
+            onToggleDone: () => onToggleDone(t),
+            onToggleSelection: () => onToggleSelection(t),
+          );
+        },
       ),
     );
   }
@@ -589,6 +843,8 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Icon(Icons.cloud_off_rounded, size: 48, color: AromaColors.zinc500),
+            const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
