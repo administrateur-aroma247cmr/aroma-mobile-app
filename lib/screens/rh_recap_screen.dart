@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../widgets/entity_scope_selector.dart';
+import '../widgets/rh/rh_ui.dart';
 
 class RhRecapScreen extends StatefulWidget {
   const RhRecapScreen({
@@ -113,151 +114,180 @@ class _RhRecapScreenState extends State<RhRecapScreen>
     watchEntityScope(_reload);
     final auth = context.watch<AuthProvider>();
     final canPickCollab =
-        auth.isPrivilegedStaff && _collaborateurs.length > 1;
+        auth.isPrivilegedStaff &&
+        widget.collaborateurId == null &&
+        _collaborateurs.length > 1;
 
     final body = _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? _RhError(message: _error!, onRetry: _reload)
-          : RefreshIndicator(
-              onRefresh: _reload,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (canPickCollab)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            value: _selectedCollabId,
-                            items: _collaborateurs
-                                .map(
-                                  (c) => DropdownMenuItem(
-                                    value: c.id,
-                                    child: Text(c.fullName),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) async {
-                              if (v == null) return;
-                              setState(() => _selectedCollabId = v);
-                              await _reload();
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (canPickCollab) const SizedBox(height: 12),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.calendar_month_outlined),
-                      title: const Text('Mois'),
-                      subtitle: Text(monthLabelFr(_mois)),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: _pickMonth,
-                    ),
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null
+        ? RhEmptyState(
+            title: _error!,
+            icon: Icons.error_outline_rounded,
+            actionLabel: 'Réessayer',
+            onAction: _reload,
+          )
+        : RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (canPickCollab) ...[
+                  _CollabPicker(
+                    collaborateurs: _collaborateurs,
+                    value: _selectedCollabId,
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      setState(() => _selectedCollabId = v);
+                      await _reload();
+                    },
                   ),
-                  const SizedBox(height: 16),
-                  _SectionTitle('Mon univers — ${_dash?.moisLabelFr ?? monthLabelFr(_mois)}'),
-                  const SizedBox(height: 8),
-                  _MetricGrid(
-                    cells: _dash == null
-                        ? const []
-                        : [
-                            _MetricCell('Retard', '${_dash!.retardOccurrences}'),
-                            _MetricCell('Absence', '${_dash!.absenceCount}'),
-                            _MetricCell(
-                              'Absence pointage',
-                              '${_dash!.absencePointage}',
-                            ),
-                            _MetricCell(
-                              'Absence samedi',
-                              '${_dash!.absenceSamedi}',
-                            ),
-                            _MetricCell(
-                              'Vacances (jours)',
-                              '${_dash!.vacancesJours}',
-                            ),
-                            _MetricCell(
-                              "Demandes d'explication",
-                              '${_dash!.demandesExplication}',
-                            ),
-                            _MetricCell(
-                              'Avance salaire',
-                              fmtFcfa(_dash!.avanceSalaire),
-                            ),
-                            _MetricCell(
-                              'Retenu compta',
-                              fmtFcfa(_dash!.retenuCompta),
-                            ),
-                            _MetricCell(
-                              'Factures non conformes',
-                              '${_dash!.facturesNonConformes}',
-                            ),
-                            _MetricCell(
-                              '5% Rémunération (boutique)',
-                              _dash!.boutiqueSeuilAtteint
-                                  ? fmtFcfa(
-                                      _dash!
-                                          .remuneration5pctBoutiqueIndividuelle,
-                                    )
-                                  : '—',
-                            ),
-                            _MetricCell(
-                              "Nombre d'avertissements",
-                              '${_dash!.nombreAvertissements}',
-                            ),
-                            _MetricCell(
-                              '5% Vente directe',
-                              fmtFcfa(_dash!.commission5pctVenteDirecte),
-                            ),
-                            _MetricCell(
-                              'Prime rentabilité',
-                              fmtFcfa(_dash!.primeRentabilite),
-                            ),
-                          ],
-                  ),
-                  const SizedBox(height: 20),
-                  _SectionTitle(
-                    _historique?.dateReferenceLabel != null
-                        ? 'Historique depuis ${_historique!.dateReferenceLabel}'
-                        : 'Historique depuis mon arrivée',
-                  ),
-                  const SizedBox(height: 8),
-                  _MetricGrid(
-                    cells: _historique == null
-                        ? const []
-                        : [
-                            _MetricCell(
-                              'Absences',
-                              '${_historique!.absences}',
-                            ),
-                            _MetricCell(
-                              "Demandes d'explication",
-                              '${_historique!.demandesExplication}',
-                            ),
-                            _MetricCell(
-                              'Avertissements',
-                              '${_historique!.avertissements}',
-                            ),
-                            _MetricCell(
-                              'Prime totale',
-                              fmtFcfa(_historique!.primeTotale),
-                            ),
-                            _MetricCell(
-                              'Jours congé total',
-                              '${_historique!.joursCongeTotal}',
-                            ),
-                          ],
-                  ),
+                  const SizedBox(height: 12),
                 ],
-              ),
-            );
+                _MonthPicker(
+                  label: monthLabelFr(_mois),
+                  onTap: _pickMonth,
+                ),
+                const SizedBox(height: 20),
+                RhSectionHeader(
+                  title: 'Mon univers',
+                  subtitle: _dash?.moisLabelFr ?? monthLabelFr(_mois),
+                ),
+                const SizedBox(height: 12),
+                _MetricGrid(
+                  cells: _dash == null
+                      ? const []
+                      : [
+                          _MetricCell(
+                            'Retard',
+                            '${_dash!.retardOccurrences}',
+                            Icons.schedule_rounded,
+                            const Color(0xFFB45309),
+                          ),
+                          _MetricCell(
+                            'Absence',
+                            '${_dash!.absenceCount}',
+                            Icons.event_busy_rounded,
+                            const Color(0xFFDC2626),
+                          ),
+                          _MetricCell(
+                            'Absence pointage',
+                            '${_dash!.absencePointage}',
+                            Icons.fingerprint_outlined,
+                            const Color(0xFFEA580C),
+                          ),
+                          _MetricCell(
+                            'Absence samedi',
+                            '${_dash!.absenceSamedi}',
+                            Icons.weekend_outlined,
+                            AromaColors.zinc500,
+                          ),
+                          _MetricCell(
+                            'Vacances (jours)',
+                            '${_dash!.vacancesJours}',
+                            Icons.beach_access_outlined,
+                            const Color(0xFF2563EB),
+                          ),
+                          _MetricCell(
+                            "Demandes d'explication",
+                            '${_dash!.demandesExplication}',
+                            Icons.help_outline_rounded,
+                            const Color(0xFF7C3AED),
+                          ),
+                          _MetricCell(
+                            'Avance salaire',
+                            fmtFcfa(_dash!.avanceSalaire),
+                            Icons.payments_outlined,
+                            RhUi.accent,
+                          ),
+                          _MetricCell(
+                            'Retenu compta',
+                            fmtFcfa(_dash!.retenuCompta),
+                            Icons.receipt_long_outlined,
+                            const Color(0xFFDC2626),
+                          ),
+                          _MetricCell(
+                            'Factures non conformes',
+                            '${_dash!.facturesNonConformes}',
+                            Icons.warning_amber_rounded,
+                            const Color(0xFFEA580C),
+                          ),
+                          _MetricCell(
+                            '5% Rémunération (boutique)',
+                            _dash!.boutiqueSeuilAtteint
+                                ? fmtFcfa(
+                                    _dash!.remuneration5pctBoutiqueIndividuelle,
+                                  )
+                                : '—',
+                            Icons.storefront_outlined,
+                            const Color(0xFF059669),
+                          ),
+                          _MetricCell(
+                            "Nombre d'avertissements",
+                            '${_dash!.nombreAvertissements}',
+                            Icons.gavel_outlined,
+                            const Color(0xFFDC2626),
+                          ),
+                          _MetricCell(
+                            '5% Vente directe',
+                            fmtFcfa(_dash!.commission5pctVenteDirecte),
+                            Icons.trending_up_rounded,
+                            const Color(0xFF059669),
+                          ),
+                          _MetricCell(
+                            'Prime rentabilité',
+                            fmtFcfa(_dash!.primeRentabilite),
+                            Icons.emoji_events_outlined,
+                            const Color(0xFFF59E0B),
+                          ),
+                        ],
+                ),
+                const SizedBox(height: 24),
+                RhSectionHeader(
+                  title: _historique?.dateReferenceLabel != null
+                      ? 'Historique depuis ${_historique!.dateReferenceLabel}'
+                      : 'Historique depuis mon arrivée',
+                ),
+                const SizedBox(height: 12),
+                _MetricGrid(
+                  cells: _historique == null
+                      ? const []
+                      : [
+                          _MetricCell(
+                            'Absences',
+                            '${_historique!.absences}',
+                            Icons.event_busy_rounded,
+                            const Color(0xFFDC2626),
+                          ),
+                          _MetricCell(
+                            "Demandes d'explication",
+                            '${_historique!.demandesExplication}',
+                            Icons.help_outline_rounded,
+                            const Color(0xFF7C3AED),
+                          ),
+                          _MetricCell(
+                            'Avertissements',
+                            '${_historique!.avertissements}',
+                            Icons.gavel_outlined,
+                            const Color(0xFFEA580C),
+                          ),
+                          _MetricCell(
+                            'Prime totale',
+                            fmtFcfa(_historique!.primeTotale),
+                            Icons.emoji_events_outlined,
+                            const Color(0xFFF59E0B),
+                          ),
+                          _MetricCell(
+                            'Jours congé total',
+                            '${_historique!.joursCongeTotal}',
+                            Icons.beach_access_outlined,
+                            const Color(0xFF2563EB),
+                          ),
+                        ],
+                ),
+              ],
+            ),
+          );
 
     if (widget.embedded) return body;
 
@@ -272,28 +302,120 @@ class _RhRecapScreenState extends State<RhRecapScreen>
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+class _CollabPicker extends StatelessWidget {
+  const _CollabPicker({
+    required this.collaborateurs,
+    required this.value,
+    required this.onChanged,
+  });
 
-  final String text;
+  final List<CollaborateurLite> collaborateurs;
+  final String? value;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AromaColors.zinc900,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: AromaColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE4E4E7)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: collaborateurs
+              .map(
+                (c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.fullName),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthPicker extends StatelessWidget {
+  const _MonthPicker({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AromaColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE4E4E7)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: RhUi.gradient,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_month_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Période',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AromaColors.zinc500,
+                        ),
+                      ),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: AromaColors.zinc500),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
 class _MetricCell {
-  const _MetricCell(this.label, this.value);
+  const _MetricCell(this.label, this.value, this.icon, this.color);
 
   final String label;
   final String value;
+  final IconData icon;
+  final Color color;
 }
 
 class _MetricGrid extends StatelessWidget {
@@ -313,64 +435,57 @@ class _MetricGrid extends StatelessWidget {
             crossAxisCount: cross,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 1.35,
+            childAspectRatio: 1.2,
           ),
           itemCount: cells.length,
           itemBuilder: (context, i) {
             final cell = cells[i];
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cell.label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AromaColors.zinc500,
-                      ),
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AromaColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE4E4E7)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: cell.color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const Spacer(),
-                    Text(
-                      cell.value,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    child: Icon(cell.icon, size: 16, color: cell.color),
+                  ),
+                  const Spacer(),
+                  Text(
+                    cell.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AromaColors.zinc500,
+                      height: 1.2,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    cell.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                  ),
+                ],
               ),
             );
           },
         );
       },
-    );
-  }
-}
-
-class _RhError extends StatelessWidget {
-  const _RhError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
-          ],
-        ),
-      ),
     );
   }
 }

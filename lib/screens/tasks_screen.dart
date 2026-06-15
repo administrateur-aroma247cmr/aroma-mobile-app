@@ -12,7 +12,10 @@ import '../widgets/modern_select_field.dart';
 import '../widgets/tasks/task_card_modern.dart';
 import '../widgets/tasks/task_detail_sheet.dart';
 import '../widgets/tasks/task_ui.dart';
+import '../widgets/tasks/tasks_calendar_tab.dart';
 import '../widgets/tasks_recap_tab.dart';
+
+enum _TaskScreenTab { active, starred, done, history, calendar, recap }
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -30,17 +33,50 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
   String _search = '';
   bool _searchExpanded = false;
   final _searchFocus = FocusNode();
-  int _tabIndex = 0;
+  _TaskScreenTab _currentTab = _TaskScreenTab.active;
   String _recapMonth = currentMonthIso();
   String? _recapCollabFilter;
   String? _executiveCollabFilter;
 
-  static const _tabs = [
-    _TaskTab('En cours', Icons.play_circle_outline_rounded),
-    _TaskTab('Sélectionnées', Icons.bookmark_outline_rounded),
-    _TaskTab('Terminées', Icons.check_circle_outline_rounded),
-    _TaskTab('Historique', Icons.history_rounded),
-  ];
+  List<_TabConfig> _visibleTabs(AuthProvider auth) => [
+        _TabConfig(
+          _TaskScreenTab.active,
+          'En cours',
+          Icons.play_circle_outline_rounded,
+          _tasks.where((t) => !t.isTerminee).length,
+        ),
+        _TabConfig(
+          _TaskScreenTab.starred,
+          'Sélectionnées',
+          Icons.bookmark_outline_rounded,
+          _stats.starred,
+        ),
+        _TabConfig(
+          _TaskScreenTab.done,
+          'Terminées',
+          Icons.check_circle_outline_rounded,
+          _tasks.where((t) => t.isTerminee).length,
+        ),
+        _TabConfig(
+          _TaskScreenTab.history,
+          'Historique',
+          Icons.history_rounded,
+          _tasks.where((t) => t.isTerminee).length,
+        ),
+        const _TabConfig(
+          _TaskScreenTab.calendar,
+          'Mon calendrier',
+          Icons.calendar_month_outlined,
+          null,
+        ),
+        if (auth.canViewCollaborateurRecaps)
+          const _TabConfig(
+            _TaskScreenTab.recap,
+            'Mon récapitulatif',
+            Icons.insights_outlined,
+            null,
+          ),
+      ];
 
   @override
   void initState() {
@@ -115,17 +151,20 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
     return names.isEmpty ? '—' : names.join(', ');
   }
 
-  List<Tache> _filteredForTab(int tabIndex) {
+  List<Tache> _filteredForTab(_TaskScreenTab tab) {
     Iterable<Tache> list = _tasks;
-    switch (tabIndex) {
-      case 1:
+    switch (tab) {
+      case _TaskScreenTab.starred:
         list = list.where((t) => t.isSelectionnee && !t.isTerminee);
         break;
-      case 2:
-      case 3:
+      case _TaskScreenTab.done:
+      case _TaskScreenTab.history:
         list = list.where((t) => t.isTerminee);
         break;
-      default:
+      case _TaskScreenTab.calendar:
+      case _TaskScreenTab.recap:
+        return const [];
+      case _TaskScreenTab.active:
         list = list.where((t) => !t.isTerminee);
     }
     final auth = context.read<AuthProvider>();
@@ -306,91 +345,107 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
     watchEntityScope(_reload);
     final auth = context.watch<AuthProvider>();
     final stats = _stats;
-    final showRecap = auth.canViewCollaborateurRecaps;
-    final isRecapTab = showRecap && _tabIndex == 4;
+    final tabs = _visibleTabs(auth);
+    if (!tabs.any((t) => t.id == _currentTab)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentTab = _TaskScreenTab.active);
+      });
+    }
+    final isListTab = _currentTab == _TaskScreenTab.active ||
+        _currentTab == _TaskScreenTab.starred ||
+        _currentTab == _TaskScreenTab.done ||
+        _currentTab == _TaskScreenTab.history;
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _TasksHeader(
-              searchExpanded: _searchExpanded,
-              searchFocus: _searchFocus,
-              onSearchToggle: () {
-                setState(() {
-                  _searchExpanded = !_searchExpanded;
-                  if (_searchExpanded) {
-                    _searchFocus.requestFocus();
-                  } else {
-                    _search = '';
-                    _searchFocus.unfocus();
-                  }
-                });
-              },
-              onSearchChanged: (v) => setState(() => _search = v),
-              stats: stats,
-            ),
-            const SizedBox(height: 8),
-            _TabPills(
-              tabs: _tabs,
-              showRecap: showRecap,
-              selectedIndex: _tabIndex,
-              counts: [
-                _tasks.where((t) => !t.isTerminee).length,
-                stats.starred,
-                _tasks.where((t) => t.isTerminee).length,
-                _tasks.where((t) => t.isTerminee).length,
-              ],
-              onSelected: (i) => setState(() => _tabIndex = i),
-            ),
-            if (!isRecapTab &&
-                auth.canViewAllTaches &&
-                _collaborateurs.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: _CollaborateurFilter(
-                  collaborateurs: _collaborateurs,
-                  value: _executiveCollabFilter,
-                  onChanged: (v) => setState(() => _executiveCollabFilter = v),
-                ),
-              ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                  ? _ErrorState(message: _error!, onRetry: _reload)
-                  : isRecapTab
-                  ? TasksRecapTab(
-                      tasks: _tasks,
-                      collaborateurs: _collaborateurs,
-                      currentCollaborateurId: auth.collaborateurId,
-                      isExecutive: auth.canViewAllTaches,
-                      monthKey: _recapMonth,
-                      onMonthChanged: (m) => setState(() => _recapMonth = m),
-                      selectedCollaborateurId: _recapCollabFilter,
-                      onCollaborateurChanged: (v) =>
-                          setState(() => _recapCollabFilter = v),
-                    )
-                  : _TaskList(
-                      items: _filteredForTab(_tabIndex),
-                      tabIndex: _tabIndex,
-                      canCreate: auth.canCreateTache,
-                      clientLabel: _clientLabel,
-                      assigneeLabel: _assigneeLabel,
-                      superviseurLabel: _superviseurLabel,
-                      onRefresh: _reload,
-                      onTap: _openDetail,
-                      onToggleDone: _toggleDone,
-                      onToggleSelection: _toggleSelection,
-                      onCreate: () => _openForm(),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _ErrorState(message: _error!, onRetry: _reload)
+            : NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                  SliverToBoxAdapter(
+                    child: _TasksHeader(
+                      compact: !isListTab,
+                      searchExpanded: _searchExpanded,
+                      searchFocus: _searchFocus,
+                      onSearchToggle: () {
+                        setState(() {
+                          _searchExpanded = !_searchExpanded;
+                          if (_searchExpanded) {
+                            _searchFocus.requestFocus();
+                          } else {
+                            _search = '';
+                            _searchFocus.unfocus();
+                          }
+                        });
+                      },
+                      onSearchChanged: (v) => setState(() => _search = v),
+                      stats: stats,
                     ),
-            ),
-          ],
-        ),
+                  ),
+                  if (isListTab &&
+                      auth.canViewAllTaches &&
+                      _collaborateurs.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: _CollaborateurFilter(
+                          collaborateurs: _collaborateurs,
+                          value: _executiveCollabFilter,
+                          onChanged: (v) =>
+                              setState(() => _executiveCollabFilter = v),
+                        ),
+                      ),
+                    ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _PinnedTabBarDelegate(
+                      child: _TabPills(
+                        tabs: tabs,
+                        selected: _currentTab,
+                        onSelected: (tab) => setState(() => _currentTab = tab),
+                      ),
+                    ),
+                  ),
+                ],
+                body: _currentTab == _TaskScreenTab.calendar
+                    ? TasksCalendarTab(
+                        tasks: _tasks,
+                        showAllTasks: auth.canViewAllTaches,
+                        collaborateurId: auth.collaborateurId,
+                        onTaskTap: _openDetail,
+                      )
+                    : _currentTab == _TaskScreenTab.recap
+                    ? TasksRecapTab(
+                        tasks: _tasks,
+                        collaborateurs: _collaborateurs,
+                        currentCollaborateurId: auth.collaborateurId,
+                        isExecutive: auth.isExecutive,
+                        monthKey: _recapMonth,
+                        onMonthChanged: (m) =>
+                            setState(() => _recapMonth = m),
+                        selectedCollaborateurId: _recapCollabFilter,
+                        onCollaborateurChanged: (v) =>
+                            setState(() => _recapCollabFilter = v),
+                      )
+                    : _TaskList(
+                        items: _filteredForTab(_currentTab),
+                        tab: _currentTab,
+                        canCreate: auth.canCreateTache,
+                        clientLabel: _clientLabel,
+                        assigneeLabel: _assigneeLabel,
+                        superviseurLabel: _superviseurLabel,
+                        onRefresh: _reload,
+                        onTap: _openDetail,
+                        onToggleDone: _toggleDone,
+                        onToggleSelection: _toggleSelection,
+                        onCreate: () => _openForm(),
+                      ),
+              ),
       ),
-      floatingActionButton: auth.canCreateTache && !isRecapTab
+      floatingActionButton: auth.canCreateTache && isListTab
           ? Container(
               decoration: BoxDecoration(
                 gradient: TaskUi.gradient,
@@ -423,14 +478,17 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
   }
 }
 
-class _TaskTab {
-  const _TaskTab(this.label, this.icon);
+class _TabConfig {
+  const _TabConfig(this.id, this.label, this.icon, this.count);
+  final _TaskScreenTab id;
   final String label;
   final IconData icon;
+  final int? count;
 }
 
 class _TasksHeader extends StatelessWidget {
   const _TasksHeader({
+    required this.compact,
     required this.searchExpanded,
     required this.searchFocus,
     required this.onSearchToggle,
@@ -438,6 +496,7 @@ class _TasksHeader extends StatelessWidget {
     required this.stats,
   });
 
+  final bool compact;
   final bool searchExpanded;
   final FocusNode searchFocus;
   final VoidCallback onSearchToggle;
@@ -477,15 +536,16 @@ class _TasksHeader extends StatelessWidget {
                 ),
               ),
               const EntityScopeAppBarAction(),
-              IconButton(
-                onPressed: onSearchToggle,
-                icon: Icon(
-                  searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+              if (!compact)
+                IconButton(
+                  onPressed: onSearchToggle,
+                  icon: Icon(
+                    searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                  ),
                 ),
-              ),
             ],
           ),
-          if (searchExpanded) ...[
+          if (!compact && searchExpanded) ...[
             const SizedBox(height: 8),
             TextField(
               focusNode: searchFocus,
@@ -503,30 +563,33 @@ class _TasksHeader extends StatelessWidget {
               onChanged: onSearchChanged,
             ),
           ],
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _StatPill(
-                label: 'Actives',
-                value: '${stats.active}',
-                color: TaskUi.accent,
-              ),
-              const SizedBox(width: 8),
-              _StatPill(
-                label: 'Retard',
-                value: '${stats.overdue}',
-                color: stats.overdue > 0
-                    ? const Color(0xFFDC2626)
-                    : AromaColors.zinc500,
-              ),
-              const SizedBox(width: 8),
-              _StatPill(
-                label: 'Sélection',
-                value: '${stats.starred}',
-                color: const Color(0xFF059669),
-              ),
-            ],
-          ),
+          if (!compact) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _StatPill(
+                  label: 'Actives',
+                  value: '${stats.active}',
+                  color: TaskUi.accent,
+                ),
+                const SizedBox(width: 8),
+                _StatPill(
+                  label: 'Retard',
+                  value: '${stats.overdue}',
+                  color: stats.overdue > 0
+                      ? const Color(0xFFDC2626)
+                      : AromaColors.zinc500,
+                ),
+                const SizedBox(width: 8),
+                _StatPill(
+                  label: 'Sélection',
+                  value: '${stats.starred}',
+                  color: const Color(0xFF059669),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -585,50 +648,132 @@ class _StatPill extends StatelessWidget {
 class _TabPills extends StatelessWidget {
   const _TabPills({
     required this.tabs,
-    required this.showRecap,
-    required this.selectedIndex,
-    required this.counts,
+    required this.selected,
     required this.onSelected,
   });
 
-  final List<_TaskTab> tabs;
-  final bool showRecap;
-  final int selectedIndex;
-  final List<int> counts;
-  final ValueChanged<int> onSelected;
+  final List<_TabConfig> tabs;
+  final _TaskScreenTab selected;
+  final ValueChanged<_TaskScreenTab> onSelected;
+
+  static String _shortLabel(_TaskScreenTab id) => switch (id) {
+        _TaskScreenTab.active => 'En cours',
+        _TaskScreenTab.starred => 'Sél.',
+        _TaskScreenTab.done => 'Termin.',
+        _TaskScreenTab.history => 'Hist.',
+        _TaskScreenTab.calendar => 'Calendrier',
+        _TaskScreenTab.recap => 'Récap',
+      };
 
   @override
   Widget build(BuildContext context) {
-    final total = tabs.length + (showRecap ? 1 : 0);
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: total,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          if (showRecap && i == total - 1) {
-            return _Pill(
-              label: 'Récap',
-              icon: Icons.insights_outlined,
-              selected: selectedIndex == i,
-              count: null,
-              onTap: () => onSelected(i),
-            );
-          }
-          final tab = tabs[i];
-          return _Pill(
-            label: tab.label,
-            icon: tab.icon,
-            selected: selectedIndex == i,
-            count: i < counts.length ? counts[i] : null,
-            onTap: () => onSelected(i),
-          );
-        },
+    final listTabs = tabs
+        .where(
+          (t) =>
+              t.id != _TaskScreenTab.calendar &&
+              t.id != _TaskScreenTab.recap,
+        )
+        .toList();
+    final extraTabs = tabs
+        .where(
+          (t) =>
+              t.id == _TaskScreenTab.calendar ||
+              t.id == _TaskScreenTab.recap,
+        )
+        .toList();
+
+    return Material(
+      color: AromaColors.canvas,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                for (var i = 0; i < listTabs.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 4),
+                  Expanded(
+                    child: _Pill(
+                      label: listTabs[i].label,
+                      shortLabel: _shortLabel(listTabs[i].id),
+                      icon: listTabs[i].icon,
+                      selected: selected == listTabs[i].id,
+                      count: listTabs[i].count,
+                      compact: true,
+                      onTap: () => onSelected(listTabs[i].id),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (extraTabs.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  for (var i = 0; i < extraTabs.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 6),
+                    Expanded(
+                      child: _Pill(
+                        label: extraTabs[i].label,
+                        shortLabel: _shortLabel(extraTabs[i].id),
+                        icon: extraTabs[i].icon,
+                        selected: selected == extraTabs[i].id,
+                        count: extraTabs[i].count,
+                        compact: true,
+                        onTap: () => onSelected(extraTabs[i].id),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
+}
+
+class _PinnedTabBarDelegate extends SliverPersistentHeaderDelegate {
+  _PinnedTabBarDelegate({required this.child});
+
+  final Widget child;
+
+  @override
+  double get minExtent => _tabBarHeight;
+
+  @override
+  double get maxExtent => _tabBarHeight;
+
+  static const double _tabBarHeight = 108;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AromaColors.canvas,
+        boxShadow: overlapsContent
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedTabBarDelegate oldDelegate) =>
+      child != oldDelegate.child;
 }
 
 class _Pill extends StatelessWidget {
@@ -637,29 +782,37 @@ class _Pill extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.shortLabel,
     this.count,
+    this.compact = false,
   });
 
   final String label;
+  final String? shortLabel;
   final IconData icon;
   final bool selected;
   final int? count;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final displayLabel = compact ? (shortLabel ?? label) : label;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(compact ? 12 : 22),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 4 : 14,
+            vertical: compact ? 6 : 8,
+          ),
           decoration: BoxDecoration(
             gradient: selected ? TaskUi.gradient : null,
             color: selected ? null : AromaColors.surface,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(compact ? 12 : 22),
             border: Border.all(
               color: selected ? Colors.transparent : const Color(0xFFE4E4E7),
             ),
@@ -673,48 +826,98 @@ class _Pill extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: selected ? Colors.white : AromaColors.zinc500,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : AromaColors.zinc800,
-                ),
-              ),
-              if (count != null && count! > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? Colors.white.withValues(alpha: 0.25)
-                        : AromaColors.zinc100,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : AromaColors.zinc800,
+          child: compact
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 15,
+                      color: selected ? Colors.white : AromaColors.zinc500,
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    Text(
+                      displayLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? Colors.white : AromaColors.zinc800,
+                      ),
+                    ),
+                    if (count != null && count! > 0) ...[
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.white.withValues(alpha: 0.25)
+                              : AromaColors.zinc100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? Colors.white
+                                : AromaColors.zinc800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 16,
+                      color: selected ? Colors.white : AromaColors.zinc500,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      displayLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? Colors.white : AromaColors.zinc800,
+                      ),
+                    ),
+                    if (count != null && count! > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.white.withValues(alpha: 0.25)
+                              : AromaColors.zinc100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? Colors.white
+                                : AromaColors.zinc800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ],
-          ),
         ),
       ),
     );
@@ -758,7 +961,7 @@ class _CollaborateurFilter extends StatelessWidget {
 class _TaskList extends StatelessWidget {
   const _TaskList({
     required this.items,
-    required this.tabIndex,
+    required this.tab,
     required this.canCreate,
     required this.clientLabel,
     required this.assigneeLabel,
@@ -771,7 +974,7 @@ class _TaskList extends StatelessWidget {
   });
 
   final List<Tache> items;
-  final int tabIndex;
+  final _TaskScreenTab tab;
   final bool canCreate;
   final String Function(Tache) clientLabel;
   final String Function(Tache) assigneeLabel;
@@ -782,34 +985,52 @@ class _TaskList extends StatelessWidget {
   final Future<void> Function(Tache) onToggleSelection;
   final VoidCallback onCreate;
 
-  String get _emptyTitle => switch (tabIndex) {
-        1 => 'Aucune tâche sélectionnée',
-        2 => 'Aucune tâche terminée',
-        3 => 'Historique vide',
+  String get _emptyTitle => switch (tab) {
+        _TaskScreenTab.starred => 'Aucune tâche sélectionnée',
+        _TaskScreenTab.done => 'Aucune tâche terminée',
+        _TaskScreenTab.history => 'Historique vide',
         _ => 'Aucune tâche en cours',
       };
 
-  String? get _emptySubtitle => switch (tabIndex) {
-        0 when canCreate => 'Créez votre première tâche pour commencer.',
-        1 => 'Marquez des tâches avec le signet pour les retrouver ici.',
+  String? get _emptySubtitle => switch (tab) {
+        _TaskScreenTab.active when canCreate =>
+          'Créez votre première tâche pour commencer.',
+        _TaskScreenTab.starred =>
+          'Marquez des tâches avec le signet pour les retrouver ici.',
         _ => null,
       };
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return TaskEmptyState(
-        title: _emptyTitle,
-        subtitle: _emptySubtitle,
-        actionLabel: tabIndex == 0 && canCreate ? 'Nouvelle tâche' : null,
-        onAction: tabIndex == 0 && canCreate ? onCreate : null,
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        color: TaskUi.accent,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: TaskEmptyState(
+                title: _emptyTitle,
+                subtitle: _emptySubtitle,
+                actionLabel: tab == _TaskScreenTab.active && canCreate
+                    ? 'Nouvelle tâche'
+                    : null,
+                onAction: tab == _TaskScreenTab.active && canCreate
+                    ? onCreate
+                    : null,
+              ),
+            ),
+          ],
+        ),
       );
     }
     return RefreshIndicator(
       onRefresh: onRefresh,
       color: TaskUi.accent,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         itemCount: items.length,
         separatorBuilder: (context, index) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
