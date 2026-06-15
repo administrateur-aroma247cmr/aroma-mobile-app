@@ -23,6 +23,7 @@ class _RecouvrementScreenState extends State<RecouvrementScreen>
   String? _error;
   RecouvrementPage? _data;
   String _search = '';
+  _RecouvrementView _view = _RecouvrementView.retard;
 
   @override
   void initState() {
@@ -84,6 +85,15 @@ class _RecouvrementScreenState extends State<RecouvrementScreen>
     final retard = _filter(data.facturesRetard);
     final attendu = _filter(data.facturesAttendu);
 
+    final showRetard = _view == _RecouvrementView.retard;
+    final activeList = showRetard ? retard : attendu;
+    final listTitle = showRetard
+        ? 'Factures en retard (${retard.length})'
+        : 'Factures attendues — mois en cours (${attendu.length})';
+    final emptyHint = showRetard
+        ? 'Aucune facture en retard.'
+        : 'Aucune facture attendue ce mois.';
+
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
@@ -97,6 +107,8 @@ class _RecouvrementScreenState extends State<RecouvrementScreen>
                   value: fmtFcfa(data.montantRetard),
                   icon: Icons.warning_amber_rounded,
                   accent: Colors.red.shade700,
+                  selected: showRetard,
+                  onTap: () => setState(() => _view = _RecouvrementView.retard),
                 ),
               ),
               const SizedBox(width: 12),
@@ -106,6 +118,8 @@ class _RecouvrementScreenState extends State<RecouvrementScreen>
                   value: fmtFcfa(data.montantAttendu),
                   icon: Icons.schedule_rounded,
                   accent: Colors.orange.shade800,
+                  selected: !showRetard,
+                  onTap: () => setState(() => _view = _RecouvrementView.attendu),
                 ),
               ),
             ],
@@ -120,28 +134,18 @@ class _RecouvrementScreenState extends State<RecouvrementScreen>
           ),
           const SizedBox(height: 20),
           Text(
-            'Factures en retard (${retard.length})',
+            listTitle,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
           ),
           const SizedBox(height: 8),
-          if (retard.isEmpty)
-            const _EmptyHint('Aucune facture en retard.')
+          if (activeList.isEmpty)
+            _EmptyHint(emptyHint)
           else
-            ...retard.map((f) => _FactureTile(facture: f, onTap: () => _openFiche(f))),
-          const SizedBox(height: 24),
-          Text(
-            'Factures attendues — mois en cours (${attendu.length})',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 8),
-          if (attendu.isEmpty)
-            const _EmptyHint('Aucune facture attendue ce mois.')
-          else
-            ...attendu.map((f) => _FactureTile(facture: f, onTap: () => _openFiche(f))),
+            ...activeList.map(
+              (f) => _FactureTile(facture: f, onTap: () => _openFiche(f)),
+            ),
           const SizedBox(height: 32),
         ],
       ),
@@ -201,38 +205,73 @@ class _FactureTile extends StatelessWidget {
   }
 }
 
+enum _RecouvrementView { retard, attendu }
+
 class _KpiCard extends StatelessWidget {
   const _KpiCard({
     required this.title,
     required this.value,
     required this.icon,
     required this.accent,
+    required this.selected,
+    required this.onTap,
   });
 
   final String title;
   final String value;
   final IconData icon;
   final Color accent;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: accent, size: 22),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontSize: 12, color: AromaColors.zinc500)),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
+    return Material(
+      color: selected ? accent.withValues(alpha: 0.08) : AromaColors.surface,
+      elevation: selected ? 2 : 0,
+      shadowColor: accent.withValues(alpha: 0.25),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? accent : AromaColors.zinc200,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: accent, size: 22),
+                  const Spacer(),
+                  if (selected)
+                    Icon(Icons.check_circle_rounded, color: accent, size: 18),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: selected ? accent : AromaColors.zinc500,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: selected ? accent : null,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );

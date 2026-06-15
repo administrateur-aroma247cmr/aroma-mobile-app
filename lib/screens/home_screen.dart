@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../screens/caisse_screen.dart';
 import '../screens/compta_hub_screen.dart';
 import '../screens/kpi_screen.dart';
 import '../screens/rh_hub_screen.dart';
@@ -72,8 +73,7 @@ class HomeScreen extends StatelessWidget {
           icon: Icons.groups_outlined,
           onTap: () => _openModule(context, const RhHubScreen()),
         ),
-      if (auth.canShowHomeModule('compta') ||
-          auth.canShowHomeModule('caisse'))
+      if (auth.canShowHomeModule('compta'))
         _HomeModule(
           title: 'Ma comptabilité',
           gradient: const LinearGradient(
@@ -83,6 +83,17 @@ class HomeScreen extends StatelessWidget {
           ),
           icon: Icons.calculate_outlined,
           onTap: () => _openModule(context, const ComptaHubScreen()),
+        ),
+      if (auth.canShowHomeModule('caisse'))
+        _HomeModule(
+          title: 'Ma caisse',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF97316), Color(0xFFD97706)],
+          ),
+          icon: Icons.account_balance_wallet_outlined,
+          onTap: () => _openModule(context, const CaisseScreen()),
         ),
       if (auth.canShowHomeModule('validation'))
         _HomeModule(

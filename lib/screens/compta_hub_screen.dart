@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
-import '../widgets/compta/compta_caisse_tab.dart';
-import '../widgets/compta/compta_pilotage_tab.dart';
+import '../widgets/compta/compta_historique_tab.dart';
+import '../widgets/compta/compta_operations_tab.dart';
 import '../widgets/compta/compta_recouvrement_tab.dart';
 import '../widgets/compta/compta_ui.dart';
 import '../widgets/entity_scope_selector.dart';
@@ -18,8 +18,7 @@ class ComptaHubScreen extends StatefulWidget {
 }
 
 class _ComptaHubScreenState extends State<ComptaHubScreen> {
-  String _currentTab = 'pilotage';
-  int _caisseEnAttenteCount = 0;
+  String _currentTab = 'operations';
   int _recouvrementRetardCount = 0;
 
   @override
@@ -30,17 +29,6 @@ class _ComptaHubScreenState extends State<ComptaHubScreen> {
 
   Future<void> _loadBadgeCounts() async {
     final auth = context.read<AuthProvider>();
-    try {
-      final demandes = await auth.api.listDemandesAPayer(auteurMoi: true);
-      var enAttente = 0;
-      for (final d in demandes) {
-        final s = (d.statut ?? '').trim();
-        if (s.contains('attente') || s.contains('Soumis')) enAttente++;
-      }
-      if (!mounted) return;
-      setState(() => _caisseEnAttenteCount = enAttente);
-    } catch (_) {}
-
     if (!auth.isPrivilegedStaff && !auth.canAccess('comptabilite')) return;
     try {
       final page = await auth.api.getRecouvrementPage();
@@ -54,15 +42,14 @@ class _ComptaHubScreenState extends State<ComptaHubScreen> {
         auth.isPrivilegedStaff || auth.canAccess('comptabilite');
     return [
       const ComptaTabConfig(
-        'pilotage',
-        'Pilotage',
-        Icons.insights_outlined,
+        'operations',
+        'Opérations de caisse',
+        Icons.receipt_long_outlined,
       ),
-      ComptaTabConfig(
-        'caisse',
-        'Caisse',
-        Icons.account_balance_wallet_outlined,
-        count: _caisseEnAttenteCount > 0 ? _caisseEnAttenteCount : null,
+      const ComptaTabConfig(
+        'historique',
+        'Mon historique',
+        Icons.history_rounded,
       ),
       if (canRecouvrement)
         ComptaTabConfig(
@@ -103,16 +90,14 @@ class _ComptaHubScreenState extends State<ComptaHubScreen> {
             const SizedBox(height: 8),
             Expanded(
               child: switch (selectedTab) {
-                'caisse' => ComptaCaisseTab(
-                    key: ValueKey('caisse-${auth.currentEntityCode}'),
+                'historique' => ComptaHistoriqueTab(
+                    key: ValueKey('historique-${auth.currentEntityCode}'),
                   ),
                 'recouvrement' => ComptaRecouvrementTab(
                     key: ValueKey('recouvrement-${auth.currentEntityCode}'),
                   ),
-                _ => ComptaPilotageTab(
-                    key: ValueKey('pilotage-${auth.currentEntityCode}'),
-                    onNavigate: _selectTab,
-                    caisseEnAttenteCount: _caisseEnAttenteCount,
+                _ => ComptaOperationsTab(
+                    key: ValueKey('operations-${auth.currentEntityCode}'),
                   ),
               },
             ),

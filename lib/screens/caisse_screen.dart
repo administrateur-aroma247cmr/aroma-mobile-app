@@ -6,14 +6,12 @@ import '../models/demande_a_payer.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
+import '../widgets/caisse/caisse_ui.dart';
 import '../widgets/caisse_demande_form_sheet.dart';
-import '../widgets/compta/compta_ui.dart';
 import '../widgets/entity_scope_selector.dart';
 
 class CaisseScreen extends StatefulWidget {
-  const CaisseScreen({super.key, this.embedded = false});
-
-  final bool embedded;
+  const CaisseScreen({super.key});
 
   @override
   State<CaisseScreen> createState() => _CaisseScreenState();
@@ -29,10 +27,22 @@ class _CaisseScreenState extends State<CaisseScreen>
   CaisseMetrics? _metrics;
   MaCaisseAccess? _access;
 
-  static const _subTabs = [
-    ComptaTabConfig('demandes', 'Mes demandes', Icons.receipt_long_outlined),
-    ComptaTabConfig('ma_caisse', 'Ma caisse', Icons.storefront_outlined),
-    ComptaTabConfig('recap', 'Récap', Icons.summarize_outlined),
+  static const _tabs = [
+    CaisseTabConfig(
+      'demandes',
+      'Mes demandes à payer',
+      Icons.receipt_long_outlined,
+    ),
+    CaisseTabConfig(
+      'ma_caisse',
+      'Ma caisse',
+      Icons.storefront_outlined,
+    ),
+    CaisseTabConfig(
+      'recap',
+      'Mon récapitulatif',
+      Icons.summarize_outlined,
+    ),
   ];
 
   @override
@@ -129,67 +139,31 @@ class _CaisseScreenState extends State<CaisseScreen>
     if (ok == true) await _reload();
   }
 
-  Widget _body(AuthProvider auth) {
+  Widget _tabContent(AuthProvider auth) {
     final canMaCaisse = auth.canAccessCaisseMaPage(_access);
     final showMaCaisseHint = canMaCaisse;
 
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return _CaisseError(message: _error!, onRetry: _reload);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (widget.embedded) ...[
-          ComptaTabPills(
-            tabs: _subTabs,
-            selected: _currentTab,
-            onSelected: (tab) => setState(() => _currentTab = tab),
-          ),
-          const SizedBox(height: 8),
-        ],
-        if (widget.embedded &&
-            auth.canCreateCaisseDemande &&
-            _currentTab == 'demandes')
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, widget.embedded ? 0 : 12, 16, 8),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: () => _openDemandeForm(),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Nouvelle demande'),
-              ),
-            ),
-          ),
-        Expanded(
-          child: switch (_currentTab) {
-            'ma_caisse' => _MaCaisseTab(
-                canAccess: canMaCaisse,
-                demandes: _demandesValidation,
-                isDesignatedCaissier: _access?.isDesignatedCaissier == true,
-                onRefresh: _reload,
-              ),
-            'recap' => _RecapTab(
-                isExecutive: auth.isExecutive,
-                metrics: _metrics,
-                recapPerso: _recapPerso(),
-                showMaCaisseHint: showMaCaisseHint,
-                isDesignatedCaissier: _access?.isDesignatedCaissier == true,
-              ),
-            _ => _DemandesTab(
-                demandes: _demandes,
-                onRefresh: _reload,
-                canEdit: auth.canCreateCaisseDemande,
-                onEdit: (d) => _openDemandeForm(demande: d),
-              ),
-          },
+    return switch (_currentTab) {
+      'ma_caisse' => _MaCaisseTab(
+          canAccess: canMaCaisse,
+          demandes: _demandesValidation,
+          isDesignatedCaissier: _access?.isDesignatedCaissier == true,
+          onRefresh: _reload,
         ),
-      ],
-    );
+      'recap' => _RecapTab(
+          isExecutive: auth.isExecutive,
+          metrics: _metrics,
+          recapPerso: _recapPerso(),
+          showMaCaisseHint: showMaCaisseHint,
+          isDesignatedCaissier: _access?.isDesignatedCaissier == true,
+        ),
+      _ => _DemandesTab(
+          demandes: _demandes,
+          onRefresh: _reload,
+          canEdit: auth.canCreateCaisseDemande,
+          onEdit: (d) => _openDemandeForm(demande: d),
+        ),
+    };
   }
 
   @override
@@ -197,27 +171,8 @@ class _CaisseScreenState extends State<CaisseScreen>
     watchEntityScope(_reload);
     final auth = context.watch<AuthProvider>();
 
-    if (widget.embedded) {
-      return _body(auth);
-    }
-
     return Scaffold(
       backgroundColor: AromaColors.canvas,
-      appBar: AppBar(
-        title: const Text('Caisse'),
-        actions: const [EntityScopeAppBarAction()],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: ComptaTabPills(
-              tabs: _subTabs,
-              selected: _currentTab,
-              onSelected: (tab) => setState(() => _currentTab = tab),
-            ),
-          ),
-        ),
-      ),
       floatingActionButton: auth.canCreateCaisseDemande && _currentTab == 'demandes'
           ? FloatingActionButton.extended(
               onPressed: () => _openDemandeForm(),
@@ -225,7 +180,79 @@ class _CaisseScreenState extends State<CaisseScreen>
               label: const Text('Nouvelle demande'),
             )
           : null,
-      body: _body(auth),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _CaisseHeader(),
+            const SizedBox(height: 8),
+            CaisseTabPills(
+              tabs: _tabs,
+              selected: _currentTab,
+              onSelected: (tab) => setState(() => _currentTab = tab),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? _CaisseError(message: _error!, onRetry: _reload)
+                  : _tabContent(auth),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CaisseHeader extends StatelessWidget {
+  const _CaisseHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: CaisseUi.gradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_outlined,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ma caisse',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                ),
+                const Text(
+                  'Demandes à payer, opérations et récapitulatif',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AromaColors.zinc500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const EntityScopeAppBarAction(),
+        ],
+      ),
     );
   }
 }

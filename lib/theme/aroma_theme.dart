@@ -9,6 +9,7 @@ abstract final class AromaColors {
   static const zinc900 = Color(0xFF18181B);
   static const zinc800 = Color(0xFF27272A);
   static const zinc500 = Color(0xFF71717A);
+  static const zinc400 = Color(0xFFA1A1AA);
   static const zinc200 = Color(0xFFE4E4E7);
   static const zinc100 = Color(0xFFF4F4F5);
   static const inputFill = Color(0xFFF3F3F5);

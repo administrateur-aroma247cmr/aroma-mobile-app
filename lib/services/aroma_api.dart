@@ -8,6 +8,7 @@ import '../models/bon_commande.dart';
 import '../models/client_lite.dart';
 import '../models/business_entity.dart';
 import '../models/caisse_metrics.dart';
+import '../models/comptabilite.dart';
 import '../models/collaborateur.dart';
 import '../models/demande_a_payer.dart';
 import '../models/demande_rh.dart';
@@ -1138,6 +1139,131 @@ class AromaApi {
       if (m is Map<String, dynamic>) {
         return AnalyticsGlobalDashboard.fromJson(m);
       }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<TransactionComptable>> listTransactionsComptable({
+    int? limit,
+    int? offset,
+    bool? validationOk,
+    bool? validationRejetee,
+    bool? historique,
+    String? dateDebut,
+    String? dateFin,
+  }) async {
+    final q = <String, String>{};
+    if (limit != null) q['limit'] = '$limit';
+    if (offset != null) q['offset'] = '$offset';
+    if (validationOk != null) q['validation_ok'] = validationOk ? 'true' : 'false';
+    if (validationRejetee != null) {
+      q['validation_rejetee'] = validationRejetee ? 'true' : 'false';
+    }
+    if (historique == true) q['historique'] = 'true';
+    if (dateDebut != null && dateDebut.isNotEmpty) q['date_debut'] = dateDebut;
+    if (dateFin != null && dateFin.isNotEmpty) q['date_fin'] = dateFin;
+
+    final res = await _client.get(
+      _uri('/api/comptabilite/transactions', q.isEmpty ? null : q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse transactions comptables invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => TransactionComptable.fromJson(
+                Map<String, dynamic>.from(e),
+              ))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<CaisseDemandeHistorique>> listCaisseHistoriqueDemandes({
+    String? dateDebut,
+    String? dateFin,
+  }) async {
+    final q = <String, String>{};
+    if (dateDebut != null && dateDebut.isNotEmpty) q['date_debut'] = dateDebut;
+    if (dateFin != null && dateFin.isNotEmpty) q['date_fin'] = dateFin;
+
+    final res = await _client.get(
+      _uri('/api/caisse/pilotage-historique/demandes', q.isEmpty ? null : q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse historique caisse invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => CaisseDemandeHistorique.fromJson(
+                Map<String, dynamic>.from(e),
+              ))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<FacturationCompta>> listCaisseHistoriqueFacturesPayees() async {
+    final res = await _client.get(
+      _uri('/api/caisse/pilotage-historique/factures-payees'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse factures payées invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => FacturationCompta.fromJson(
+                Map<String, dynamic>.from(e),
+              ))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<PrevisionRecetteCompta>>
+      listCaisseHistoriquePrevisionsRecettesPayees() async {
+    final res = await _client.get(
+      _uri('/api/caisse/pilotage-historique/previsions-recettes-payees'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse prévisions recettes payées invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => PrevisionRecetteCompta.fromJson(
+                Map<String, dynamic>.from(e),
+              ))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<DemandeAPayer>> listCaisseHistoriquePrevisionsDepensesPayees() async {
+    final res = await _client.get(
+      _uri('/api/caisse/pilotage-historique/previsions-depenses-payees'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse prévisions dépenses payées invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => DemandeAPayer.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     }
     throw _errorFromResponse(res);
   }
