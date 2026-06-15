@@ -301,6 +301,76 @@ class ExperienceAdcDetail extends ExperienceAdc {
   }
 }
 
+class TransportPoint {
+  TransportPoint({
+    required this.id,
+    this.ordre,
+    this.lieuDepart,
+    this.quartierDepart,
+    this.clientNomDepart,
+    this.lieuArrivee,
+    this.quartierArrivee,
+    this.clientNom,
+    this.sousDesignation,
+    this.montant,
+  });
+
+  final String id;
+  final int? ordre;
+  final String? lieuDepart;
+  final String? quartierDepart;
+  final String? clientNomDepart;
+  final String? lieuArrivee;
+  final String? quartierArrivee;
+  final String? clientNom;
+  final String? sousDesignation;
+  final double? montant;
+
+  String get departAffiche {
+    final q = (quartierDepart ?? '').trim();
+    if (q.isNotEmpty) return q;
+    return (lieuDepart ?? '').trim();
+  }
+
+  String get arriveeAffiche {
+    final q = (quartierArrivee ?? '').trim();
+    if (q.isNotEmpty) return q;
+    return (lieuArrivee ?? '').trim();
+  }
+
+  String get trajetLabel {
+    final dep = departAffiche;
+    final arr = arriveeAffiche;
+    if (dep.isEmpty && arr.isEmpty) return '—';
+    return '${dep.isEmpty ? '?' : dep} → ${arr.isEmpty ? '?' : arr}';
+  }
+
+  static double? _num(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.'));
+    return null;
+  }
+
+  static String? _str(dynamic v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+  factory TransportPoint.fromJson(Map<String, dynamic> m) {
+    return TransportPoint(
+      id: '${m['id']}',
+      ordre: (m['ordre'] as num?)?.toInt(),
+      lieuDepart: _str(m['lieu_depart']),
+      quartierDepart: _str(m['quartier_depart']),
+      clientNomDepart: _str(m['client_nom_depart']),
+      lieuArrivee: _str(m['lieu_arrivee']),
+      quartierArrivee: _str(m['quartier_arrivee']),
+      clientNom: _str(m['client_nom']),
+      sousDesignation: _str(m['sous_designation']),
+      montant: _num(m['montant']),
+    );
+  }
+}
+
 class TransportIntervention {
   TransportIntervention({
     required this.id,
@@ -309,7 +379,7 @@ class TransportIntervention {
     this.raisonDeplacement,
     this.montantTotal,
     this.technicienNom,
-    this.pointsCount = 0,
+    this.points = const [],
   });
 
   final String id;
@@ -318,7 +388,9 @@ class TransportIntervention {
   final String? raisonDeplacement;
   final double? montantTotal;
   final String? technicienNom;
-  final int pointsCount;
+  final List<TransportPoint> points;
+
+  int get pointsCount => points.length;
 
   String get titreAffiche {
     final r = (raisonDeplacement ?? '').trim();
@@ -340,8 +412,15 @@ class TransportIntervention {
 
   factory TransportIntervention.fromJson(Map<String, dynamic> m) {
     final rawPoints = m['points'];
-    var count = 0;
-    if (rawPoints is List) count = rawPoints.length;
+    final points = <TransportPoint>[];
+    if (rawPoints is List) {
+      for (final e in rawPoints) {
+        if (e is Map) {
+          points.add(TransportPoint.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    points.sort((a, b) => (a.ordre ?? 0).compareTo(b.ordre ?? 0));
 
     return TransportIntervention(
       id: '${m['id']}',
@@ -350,7 +429,7 @@ class TransportIntervention {
       raisonDeplacement: _str(m['raison_deplacement']),
       montantTotal: _num(m['montant_total']),
       technicienNom: _str(m['technicien_nom']),
-      pointsCount: count,
+      points: points,
     );
   }
 }

@@ -9,6 +9,7 @@ import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/entity_scope_selector.dart';
 import 'interventions_ui.dart';
+import 'transport_detail_sheet.dart';
 
 // ─── Mes interventions ─────────────────────────────────────────────────────────
 
@@ -108,24 +109,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
     showInterventionsDetailSheet(
       context: context,
       title: 'Intervention',
-      children: [
-        if ((i.ref ?? '').isNotEmpty)
-          InterventionsDetailRow('Référence', i.ref!),
-        InterventionsDetailRow('Type', i.typeIntervention ?? '—'),
-        InterventionsDetailRow('Client', i.clientNom ?? '—'),
-        InterventionsDetailRow('Site', i.siteAffiche.isEmpty ? '—' : i.siteAffiche),
-        InterventionsDetailRow('Ville', i.ville ?? '—'),
-        InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
-        InterventionsDetailRow(
-          'État',
-          i.etat ?? '—',
-          valueWidget: InterventionEtatBadge(etat: i.etat),
-        ),
-        InterventionsDetailRow('Technicien', i.technicienNom ?? '—'),
-        InterventionsDetailRow('Auteur', i.auteur ?? '—'),
-        if ((i.description ?? '').trim().isNotEmpty)
-          InterventionsDetailRow('Description', i.description!.trim()),
-      ],
+      children: interventionDetailRows(i),
     );
   }
 
@@ -294,17 +278,7 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     showInterventionsDetailSheet(
       context: context,
       title: i.titreAffiche,
-      children: [
-        InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
-        InterventionsDetailRow('Type', i.typeIntervention ?? '—'),
-        InterventionsDetailRow('Client', i.clientNom ?? '—'),
-        InterventionsDetailRow('Site', i.siteAffiche.isEmpty ? '—' : i.siteAffiche),
-        InterventionsDetailRow(
-          'État',
-          i.etat ?? '—',
-          valueWidget: InterventionEtatBadge(etat: i.etat),
-        ),
-      ],
+      children: interventionDetailRows(i),
     );
   }
 
@@ -657,19 +631,7 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
   }
 
   void _showDetail(TransportIntervention t) {
-    showInterventionsDetailSheet(
-      context: context,
-      title: 'Fiche transport',
-      children: [
-        InterventionsDetailRow('Date', formatDateFr(t.dateTransport)),
-        InterventionsDetailRow('Ville', t.ville ?? '—'),
-        InterventionsDetailRow('Raison', t.raisonDeplacement ?? '—'),
-        InterventionsDetailRow('Technicien', t.technicienNom ?? '—'),
-        InterventionsDetailRow('Points trajet', '${t.pointsCount}'),
-        if (t.montantTotal != null)
-          InterventionsDetailRow('Montant total', fmtFcfa(t.montantTotal)),
-      ],
-    );
+    showTransportDetailSheet(context, t);
   }
 
   @override
@@ -944,6 +906,9 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
   int get _totalAdc =>
       (_summary?.clients ?? []).fold<int>(0, (sum, c) => sum + c.nbAdc);
 
+  int get _totalVdc =>
+      (_summary?.clients ?? []).fold<int>(0, (sum, c) => sum + c.nbVdc);
+
   void _toggleExpanded(String clientId) {
     setState(() {
       if (_expandedClients.contains(clientId)) {
@@ -1004,12 +969,20 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
                   color: InterventionsUi.gradientStart,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _StatBox(
                   label: 'ADC',
                   value: '$_totalAdc',
                   color: const Color(0xFF059669),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StatBox(
+                  label: 'VDC',
+                  value: '$_totalVdc',
+                  color: const Color(0xFF7C3AED),
                 ),
               ),
             ],

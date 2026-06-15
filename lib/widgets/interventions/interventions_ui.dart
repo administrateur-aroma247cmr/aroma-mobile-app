@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../models/intervention.dart';
 import '../../theme/aroma_theme.dart';
+import '../../utils/format_utils.dart';
 import '../../utils/intervention_status_colors.dart';
 
 /// Palette module Interventions — bleu terrain (aligné CRM web).
@@ -327,6 +329,29 @@ class InterventionsListCard extends StatelessWidget {
       ),
     );
   }
+}
+
+List<Widget> interventionDetailRows(Intervention i) {
+  return [
+    if ((i.ref ?? '').isNotEmpty) InterventionsDetailRow('Référence', i.ref!),
+    InterventionsDetailRow('Type', i.typeIntervention ?? '—'),
+    InterventionsDetailRow('Client', i.clientNom ?? '—'),
+    InterventionsDetailRow(
+      'Site',
+      i.siteAffiche.isEmpty ? '—' : i.siteAffiche,
+    ),
+    InterventionsDetailRow('Ville', i.ville ?? '—'),
+    InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
+    InterventionsDetailRow(
+      'État',
+      i.etat ?? '—',
+      valueWidget: InterventionEtatBadge(etat: i.etat),
+    ),
+    InterventionsDetailRow('Technicien', i.technicienNom ?? '—'),
+    InterventionsDetailRow('Auteur', i.auteur ?? '—'),
+    if ((i.description ?? '').trim().isNotEmpty)
+      InterventionsDetailRow('Description', i.description!.trim()),
+  ];
 }
 
 class InterventionEtatBadge extends StatelessWidget {
