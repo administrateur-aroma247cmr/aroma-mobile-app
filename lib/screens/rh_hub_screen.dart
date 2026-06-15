@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../widgets/entity_scope_selector.dart';
 import '../widgets/rh/rh_collaborateur_tile.dart';
+import '../widgets/rh/rh_discipline_tab.dart';
 import '../widgets/rh/rh_demandes_tab.dart';
 import '../widgets/rh/rh_documents_tab.dart';
 import '../widgets/rh/rh_presence_tab.dart';
@@ -63,6 +64,8 @@ class _RhExecutiveShellState extends State<_RhExecutiveShell> {
   static const _tabs = [
     RhTabConfig('collabs', 'Collaborateurs', Icons.people_outline_rounded),
     RhTabConfig('demandes', 'Demandes', Icons.inbox_outlined),
+    RhTabConfig('presence', 'Présence', Icons.fingerprint_outlined),
+    RhTabConfig('discipline', 'Discipline', Icons.gavel_outlined),
   ];
 
   @override
@@ -131,9 +134,11 @@ class _RhExecutiveShellState extends State<_RhExecutiveShell> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: _currentTab == 'demandes'
-                  ? const RhDemandesTab(executiveAll: true)
-                  : _loading
+              child: switch (_currentTab) {
+                'demandes' => const RhDemandesTab(executiveAll: true),
+                'presence' => const RhPresenceTab(),
+                'discipline' => const RhDisciplineTab(showCollaborateurNames: true),
+                _ => _loading
                   ? const Center(child: CircularProgressIndicator())
                   : RefreshIndicator(
                       onRefresh: _load,
@@ -161,6 +166,7 @@ class _RhExecutiveShellState extends State<_RhExecutiveShell> {
                               },
                             ),
                     ),
+              },
             ),
           ],
         ),
@@ -193,8 +199,9 @@ class _RhCollaborateurDetailShellState
   static const _tabs = [
     RhTabConfig('profil', 'Profil', Icons.person_outline_rounded),
     RhTabConfig('recap', 'Récap', Icons.insights_outlined),
-    RhTabConfig('demandes', 'Demandes', Icons.inbox_outlined),
     RhTabConfig('presence', 'Présence', Icons.fingerprint_outlined),
+    RhTabConfig('demandes', 'Demandes', Icons.inbox_outlined),
+    RhTabConfig('discipline', 'Discipline', Icons.gavel_outlined),
     RhTabConfig('documents', 'Documents', Icons.folder_open_outlined),
   ];
 
@@ -247,8 +254,9 @@ class _RhCollaborateurDetailShellState
             embedded: true,
             collaborateurId: widget.collaborateurId,
           ),
-        'demandes' => RhDemandesTab(collaborateurId: widget.collaborateurId),
         'presence' => RhPresenceTab(collaborateurId: widget.collaborateurId),
+        'demandes' => RhDemandesTab(collaborateurId: widget.collaborateurId),
+        'discipline' => RhDisciplineTab(collaborateurId: widget.collaborateurId),
         'documents' => RhDocumentsTab(collaborateurId: widget.collaborateurId),
         _ => const SizedBox.shrink(),
       };
@@ -269,8 +277,9 @@ class _RhCollaborateurShellState extends State<_RhCollaborateurShell> {
   static const _tabs = [
     RhTabConfig('profil', 'Profil', Icons.person_outline_rounded),
     RhTabConfig('recap', 'Récap', Icons.insights_outlined),
-    RhTabConfig('demandes', 'Demandes', Icons.inbox_outlined),
     RhTabConfig('presence', 'Présence', Icons.fingerprint_outlined),
+    RhTabConfig('demandes', 'Demandes', Icons.inbox_outlined),
+    RhTabConfig('discipline', 'Discipline', Icons.gavel_outlined),
     RhTabConfig('documents', 'Documents', Icons.folder_open_outlined),
   ];
 
@@ -284,7 +293,7 @@ class _RhCollaborateurShellState extends State<_RhCollaborateurShell> {
           children: [
             const _RhHeader(
               title: 'Mon espace RH',
-              subtitle: 'Profil, demandes et documents',
+              subtitle: 'Profil, demandes, discipline et documents',
             ),
             const SizedBox(height: 8),
             RhTabPills(
@@ -303,8 +312,9 @@ class _RhCollaborateurShellState extends State<_RhCollaborateurShell> {
   Widget _buildTab() => switch (_currentTab) {
         'profil' => const RhProfilTab(),
         'recap' => const RhRecapScreen(embedded: true),
-        'demandes' => const RhDemandesTab(),
         'presence' => const RhPresenceTab(),
+        'demandes' => const RhDemandesTab(),
+        'discipline' => const RhDisciplineTab(),
         'documents' => const RhDocumentsTab(),
         _ => const SizedBox.shrink(),
       };

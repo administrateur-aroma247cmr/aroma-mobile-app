@@ -11,6 +11,7 @@ import '../models/caisse_metrics.dart';
 import '../models/collaborateur.dart';
 import '../models/demande_a_payer.dart';
 import '../models/demande_rh.dart';
+import '../models/discipline_rh.dart';
 import '../models/recouvrement.dart';
 import '../models/galerie_fichier.dart';
 import '../models/galerie_folder.dart';
@@ -929,6 +930,61 @@ class AromaApi {
       final decoded = jsonDecode(res.body);
       if (decoded is! List<dynamic>) {
         throw ApiException('Réponse disciplines RH invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<DisciplineRh>> listDisciplinesRhParsed() async {
+    final rows = await listDisciplinesRh();
+    return rows.map(DisciplineRh.fromJson).toList();
+  }
+
+  Future<DisciplineRh> patchDisciplineRh(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/discipline/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final m = jsonDecode(res.body);
+      if (m is Map<String, dynamic>) {
+        return DisciplineRh.fromJson(m);
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> uploadDisciplineDocuments(
+    List<String> filePaths,
+  ) async {
+    if (filePaths.isEmpty) return [];
+    final uri = _uri('/api/discipline/documents');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers());
+    for (final path in filePaths) {
+      final safeName = _multipartFilename(null, path);
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'files',
+          path,
+          filename: safeName,
+        ),
+      );
+    }
+    final streamed = await _client.send(request);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse documents discipline invalide.');
       }
       return decoded
           .whereType<Map>()

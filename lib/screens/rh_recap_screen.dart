@@ -148,12 +148,12 @@ class _RhRecapScreenState extends State<RhRecapScreen>
                   label: monthLabelFr(_mois),
                   onTap: _pickMonth,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 RhSectionHeader(
                   title: 'Mon univers',
                   subtitle: _dash?.moisLabelFr ?? monthLabelFr(_mois),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 _MetricGrid(
                   cells: _dash == null
                       ? const []
@@ -242,13 +242,13 @@ class _RhRecapScreenState extends State<RhRecapScreen>
                           ),
                         ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 RhSectionHeader(
                   title: _historique?.dateReferenceLabel != null
                       ? 'Historique depuis ${_historique!.dateReferenceLabel}'
                       : 'Historique depuis mon arrivée',
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 _MetricGrid(
                   cells: _historique == null
                       ? const []
@@ -433,52 +433,62 @@ class _MetricGrid extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cross,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: cross == 3 ? 2.6 : 2.35,
           ),
           itemCount: cells.length,
           itemBuilder: (context, i) {
             final cell = cells[i];
             return Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: AromaColors.surface,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE4E4E7)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: 28,
+                    height: 28,
                     decoration: BoxDecoration(
                       color: cell.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(7),
                     ),
-                    child: Icon(cell.icon, size: 16, color: cell.color),
+                    child: Icon(cell.icon, size: 14, color: cell.color),
                   ),
-                  const Spacer(),
-                  Text(
-                    cell.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AromaColors.zinc500,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    cell.value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          cell.label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AromaColors.zinc500,
+                            height: 1.15,
+                          ),
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          cell.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AromaColors.zinc900,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

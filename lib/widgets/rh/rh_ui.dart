@@ -71,6 +71,32 @@ abstract final class RhUi {
         'Avance de Paiement' => Icons.payments_outlined,
         _ => Icons.description_outlined,
       };
+
+  static IconData typeDisciplineIcon(String type) => switch (type) {
+        'avertissement' => Icons.warning_amber_rounded,
+        'blame' => Icons.gavel_rounded,
+        'mise_a_pied' => Icons.pause_circle_outline_rounded,
+        'licenciement' => Icons.person_off_outlined,
+        'demande_explication' => Icons.help_outline_rounded,
+        _ => Icons.rule_folder_outlined,
+      };
+
+  static ({Color bg, Color fg}) statutDisciplineColors(String? statut) =>
+      switch (statut) {
+        'valide' => (
+            bg: const Color(0xFFD1FAE5),
+            fg: const Color(0xFF047857),
+          ),
+        'rejete' => (
+            bg: const Color(0xFFFEE2E2),
+            fg: const Color(0xFFB91C1C),
+          ),
+        'en_cours' => (
+            bg: const Color(0xFFFEF3C7),
+            fg: const Color(0xFFB45309),
+          ),
+        _ => (bg: AromaColors.zinc100, fg: AromaColors.zinc500),
+      };
 }
 
 class RhTabConfig {
@@ -82,7 +108,7 @@ class RhTabConfig {
   final int? count;
 }
 
-class RhTabPills extends StatelessWidget {
+class RhTabPills extends StatefulWidget {
   const RhTabPills({
     super.key,
     required this.tabs,
@@ -95,92 +121,171 @@ class RhTabPills extends StatelessWidget {
   final ValueChanged<String> onSelected;
 
   @override
+  State<RhTabPills> createState() => _RhTabPillsState();
+}
+
+class _RhTabPillsState extends State<RhTabPills> {
+  final _keys = <String, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureKeys();
+    _scrollToSelected();
+  }
+
+  @override
+  void didUpdateWidget(RhTabPills oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _ensureKeys();
+    if (oldWidget.selected != widget.selected ||
+        oldWidget.tabs.length != widget.tabs.length) {
+      _scrollToSelected();
+    }
+  }
+
+  void _ensureKeys() {
+    for (final tab in widget.tabs) {
+      _keys.putIfAbsent(tab.id, GlobalKey.new);
+    }
+  }
+
+  void _scrollToSelected() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final key = _keys[widget.selected];
+      final ctx = key?.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        alignment: 0.5,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final tab = tabs[i];
-          final isSelected = selected == tab.id;
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => onSelected(tab.id),
-              borderRadius: BorderRadius.circular(22),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: isSelected ? RhUi.gradient : null,
-                  color: isSelected ? null : AromaColors.surface,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : const Color(0xFFE4E4E7),
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: RhUi.accent.withValues(alpha: 0.25),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      tab.icon,
-                      size: 16,
-                      color: isSelected ? Colors.white : AromaColors.zinc500,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      tab.label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color:
-                            isSelected ? Colors.white : AromaColors.zinc800,
+      child: Stack(
+        children: [
+          ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: widget.tabs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final tab = widget.tabs[i];
+              final isSelected = widget.selected == tab.id;
+              return KeyedSubtree(
+                key: _keys[tab.id],
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => widget.onSelected(tab.id),
+                    borderRadius: BorderRadius.circular(22),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
                       ),
-                    ),
-                    if (tab.count != null && tab.count! > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
+                      decoration: BoxDecoration(
+                        gradient: isSelected ? RhUi.gradient : null,
+                        color: isSelected ? null : AromaColors.surface,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
                           color: isSelected
-                              ? Colors.white.withValues(alpha: 0.25)
-                              : RhUi.accent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
+                              ? Colors.transparent
+                              : const Color(0xFFE4E4E7),
                         ),
-                        child: Text(
-                          '${tab.count}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : RhUi.accent,
-                          ),
-                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: RhUi.accent.withValues(alpha: 0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
                       ),
-                    ],
-                  ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            tab.icon,
+                            size: 16,
+                            color: isSelected
+                                ? Colors.white
+                                : AromaColors.zinc500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            tab.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AromaColors.zinc800,
+                            ),
+                          ),
+                          if (tab.count != null && tab.count! > 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.25)
+                                    : RhUi.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${tab.count}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color:
+                                      isSelected ? Colors.white : RhUi.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          if (widget.tabs.length > 4)
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Container(
+                  width: 28,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        AromaColors.canvas.withValues(alpha: 0),
+                        AromaColors.canvas,
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          );
-        },
+        ],
       ),
     );
   }
