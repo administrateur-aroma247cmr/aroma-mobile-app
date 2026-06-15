@@ -335,8 +335,7 @@ class _ComptaHistoriqueTabState extends State<ComptaHistoriqueTab>
             padding: const EdgeInsets.only(bottom: 8),
             child: _HistoriqueCard(
               title: d.raisonBonCommande,
-              subtitle:
-                  '${d.client} · ${formatDateFr(d.dateADecaisser)} · ${d.statut ?? '—'}',
+              subtitle: demandeListSubtitle(d, dateJourCaisse: d.dateJourCaisse),
               amount: fmtFcfa(d.montantAttendu ?? d.montantDemande),
               onTap: () => _showDemandeDetail(d),
             ),
@@ -437,8 +436,7 @@ class _ComptaHistoriqueTabState extends State<ComptaHistoriqueTab>
             padding: const EdgeInsets.only(bottom: 8),
             child: _HistoriqueCard(
               title: d.raisonBonCommande,
-              subtitle:
-                  '${d.client} · ${formatDateFr(d.dateADecaisser)} · ${d.statut ?? '—'}',
+              subtitle: demandeListSubtitle(d),
               amount: fmtFcfa(d.montantAttendu ?? d.montantDemande),
               amountColor: const Color(0xFFB45309),
               onTap: () => _showDemandeDetail(d),
@@ -549,47 +547,13 @@ class _ComptaHistoriqueTabState extends State<ComptaHistoriqueTab>
                     ),
               ),
               const SizedBox(height: 16),
-              ...rows.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 120,
-                        child: Text(
-                          e.label,
-                          style: const TextStyle(
-                            color: AromaColors.zinc500,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          e.value,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: AromaColors.zinc900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              ...children,
             ],
           ),
         ),
       ),
     );
   }
-}
-
-class _DetailEntry {
-  const _DetailEntry(this.label, this.value);
-  final String label;
-  final String value;
 }
 
 class _HistoriqueCard extends StatelessWidget {
