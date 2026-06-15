@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/entity_scope_selector.dart';
+import 'compta_detail_content.dart';
 import 'compta_ui.dart';
 
 class ComptaOperationsTab extends StatefulWidget {
@@ -103,15 +104,7 @@ class _ComptaOperationsTabState extends State<ComptaOperationsTab>
                     ),
               ),
               const SizedBox(height: 16),
-              _DetailRow('Date', formatDateFr(t.dateTransaction)),
-              _DetailRow('Type', t.isDepense ? 'Sortie' : 'Entrée'),
-              _DetailRow('Description', t.descriptionAffichee),
-              _DetailRow('Site', t.site ?? '—'),
-              _DetailRow('Demandeur', t.demandeAuteur ?? '—'),
-              if (t.isDepense)
-                _DetailRow('Sortie', fmtFcfa(t.debit))
-              else
-                _DetailRow('Entrée', fmtFcfa(t.credit)),
+              ...buildTransactionDetailContent(t),
             ],
           ),
         ),
@@ -272,8 +265,7 @@ class _OperationTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${formatDateFr(t.dateTransaction)}'
-                        '${t.site != null && t.site!.isNotEmpty ? ' · ${t.site}' : ''}',
+                        transactionListSubtitle(t),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AromaColors.zinc500,
@@ -329,41 +321,6 @@ class _TypeChip extends StatelessWidget {
       ),
       side: BorderSide(
         color: selected ? accent.withValues(alpha: 0.4) : const Color(0xFFE4E4E7),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow(this.label, this.value);
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(color: AromaColors.zinc500, fontSize: 13),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: AromaColors.zinc900,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

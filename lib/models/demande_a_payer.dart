@@ -35,6 +35,7 @@ class DemandeAPayer {
     this.justificatifs = const [],
     this.valideParHierarchie,
     this.payePar,
+    this.payeAt,
     this.createdAt,
     this.updatedAt,
     this.retour,
@@ -58,6 +59,7 @@ class DemandeAPayer {
   final List<DemandeJustificatif> justificatifs;
   final String? valideParHierarchie;
   final String? payePar;
+  final String? payeAt;
   final String? createdAt;
   final String? updatedAt;
   final String? retour;
@@ -132,6 +134,7 @@ class DemandeAPayer {
       justificatifs: pj,
       valideParHierarchie: str(m['valide_par_hierarchie']),
       payePar: str(m['paye_par']),
+      payeAt: str(m['paye_at']),
       createdAt: str(m['created_at']),
       updatedAt: str(m['updated_at']),
       retour: retourStr(m['retour']),

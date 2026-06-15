@@ -1,31 +1,121 @@
 import 'demande_a_payer.dart';
 
+class PieceJustificativeCompta {
+  PieceJustificativeCompta({
+    this.fileName,
+    this.mimeType,
+    this.id,
+    this.webViewLink,
+    this.webContentLink,
+    this.path,
+  });
+
+  final String? fileName;
+  final String? mimeType;
+  final String? id;
+  final String? webViewLink;
+  final String? webContentLink;
+  final String? path;
+
+  String displayName(int index) {
+    final name = (fileName ?? '').trim();
+    if (name.isNotEmpty) return name;
+    return 'Fichier ${index + 1}';
+  }
+
+  String? get documentPath {
+    for (final v in [webViewLink, webContentLink, path]) {
+      final s = (v ?? '').trim();
+      if (s.isNotEmpty) return s;
+    }
+    return null;
+  }
+
+  static PieceJustificativeCompta? tryParse(dynamic e) {
+    if (e is! Map) return null;
+    final m = Map<String, dynamic>.from(e);
+    String? str(dynamic v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
+    final path = str(m['path']) ?? str(m['url']);
+    final webView = str(m['webViewLink']) ?? str(m['web_view_link']);
+    final webContent = str(m['webContentLink']) ?? str(m['web_content_link']);
+    if (path == null && webView == null && webContent == null) return null;
+    return PieceJustificativeCompta(
+      fileName: str(m['fileName']) ?? str(m['file_name']) ?? str(m['name']),
+      mimeType: str(m['mimeType']) ?? str(m['mime_type']) ?? str(m['type']),
+      id: m['id']?.toString(),
+      webViewLink: webView,
+      webContentLink: webContent,
+      path: path,
+    );
+  }
+}
+
 class TransactionComptable {
   TransactionComptable({
     required this.id,
     this.dateTransaction,
+    this.groupe,
+    this.sousGroupe,
+    this.sousCategorie,
     this.designation,
+    this.sousDesignation,
     this.site,
+    this.agent,
+    this.numeroFacture,
+    this.typeFacture,
+    this.compte,
+    this.compteAffichageCanaux,
     this.demandeAuteur,
     this.credit,
     this.debit,
+    this.montantHt,
+    this.tva,
+    this.typeTva,
+    this.montantTtc,
     this.observation,
+    this.piecesJustificatives = const [],
+    this.retenuALaSource,
+    this.dateValidation,
     this.validationOk = false,
     this.validationRejetee = false,
   });
 
   final String id;
   final String? dateTransaction;
+  final String? groupe;
+  final String? sousGroupe;
+  final String? sousCategorie;
   final String? designation;
+  final String? sousDesignation;
   final String? site;
+  final String? agent;
+  final String? numeroFacture;
+  final String? typeFacture;
+  final String? compte;
+  final String? compteAffichageCanaux;
   final String? demandeAuteur;
   final double? credit;
   final double? debit;
+  final double? montantHt;
+  final double? tva;
+  final String? typeTva;
+  final double? montantTtc;
   final String? observation;
+  final List<PieceJustificativeCompta> piecesJustificatives;
+  final bool? retenuALaSource;
+  final String? dateValidation;
   final bool validationOk;
   final bool validationRejetee;
 
   bool get isDepense => (debit ?? 0) > 0;
+
+  String? get compteAffiche {
+    final canaux = (compteAffichageCanaux ?? '').trim();
+    if (canaux.isNotEmpty) return canaux;
+    final c = (compte ?? '').trim();
+    return c.isEmpty ? null : c;
+  }
 
   String get descriptionAffichee {
     final obs = (observation ?? '').trim();
@@ -42,6 +132,21 @@ class TransactionComptable {
     return des.isEmpty ? '—' : des;
   }
 
+  String? get observationAffichee {
+    final obs = (observation ?? '').trim();
+    if (obs.isEmpty) return null;
+    final parts = <String>[];
+    for (final part in obs.split('|')) {
+      final p = part.trim();
+      if (p.isEmpty) continue;
+      final lower = p.toLowerCase();
+      if (lower.startsWith('description:')) continue;
+      parts.add(p);
+    }
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+
   static double? _num(dynamic v) {
     if (v == null) return null;
     if (v is num) return v.toDouble();
@@ -49,20 +154,44 @@ class TransactionComptable {
     return null;
   }
 
+  static String? _str(dynamic v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
+
   factory TransactionComptable.fromJson(Map<String, dynamic> m) {
+    final rawPj = m['pieces_justificatives'];
+    final pj = <PieceJustificativeCompta>[];
+    if (rawPj is List) {
+      for (final e in rawPj) {
+        final p = PieceJustificativeCompta.tryParse(e);
+        if (p != null) pj.add(p);
+      }
+    }
+
     return TransactionComptable(
       id: '${m['id']}',
-      dateTransaction: m['date_transaction'] is String
-          ? m['date_transaction'] as String
-          : null,
-      designation: m['designation'] is String ? m['designation'] as String : null,
-      site: m['site'] is String ? m['site'] as String : null,
-      demandeAuteur:
-          m['demande_auteur'] is String ? m['demande_auteur'] as String : null,
+      dateTransaction: _str(m['date_transaction']),
+      groupe: _str(m['groupe']),
+      sousGroupe: _str(m['sous_groupe']),
+      sousCategorie: _str(m['sous_categorie']),
+      designation: _str(m['designation']),
+      sousDesignation: _str(m['sous_designation']),
+      site: _str(m['site']),
+      agent: _str(m['agent']),
+      numeroFacture: _str(m['numero_facture']),
+      typeFacture: _str(m['type_facture']),
+      compte: _str(m['compte']),
+      compteAffichageCanaux: _str(m['compte_affichage_canaux']),
+      demandeAuteur: _str(m['demande_auteur']),
       credit: _num(m['credit']),
       debit: _num(m['debit']),
-      observation:
-          m['observation'] is String ? m['observation'] as String : null,
+      montantHt: _num(m['montant_ht']),
+      tva: _num(m['tva']),
+      typeTva: _str(m['type_tva']),
+      montantTtc: _num(m['montant_ttc']),
+      observation: _str(m['observation']),
+      piecesJustificatives: pj,
+      retenuALaSource: m['retenu_a_la_source'] == true ? true : null,
+      dateValidation: _str(m['date_validation']),
       validationOk: m['validation_ok'] == true,
       validationRejetee: m['validation_rejetee'] == true,
     );
@@ -191,6 +320,7 @@ class CaisseDemandeHistorique extends DemandeAPayer {
     super.justificatifs,
     super.valideParHierarchie,
     super.payePar,
+    super.payeAt,
     super.createdAt,
     super.updatedAt,
     super.retour,
@@ -220,6 +350,7 @@ class CaisseDemandeHistorique extends DemandeAPayer {
       justificatifs: base.justificatifs,
       valideParHierarchie: base.valideParHierarchie,
       payePar: base.payePar,
+      payeAt: base.payeAt,
       createdAt: base.createdAt,
       updatedAt: base.updatedAt,
       retour: base.retour,

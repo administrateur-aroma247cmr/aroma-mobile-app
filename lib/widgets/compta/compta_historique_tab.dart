@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/entity_scope_selector.dart';
+import 'compta_detail_content.dart';
 import 'compta_ui.dart';
 
 typedef ComptaHistoriqueSubTab = String;
@@ -300,8 +301,7 @@ class _ComptaHistoriqueTabState extends State<ComptaHistoriqueTab>
             padding: const EdgeInsets.only(bottom: 8),
             child: _HistoriqueCard(
               title: t.descriptionAffichee,
-              subtitle:
-                  '${formatDateFr(t.dateTransaction)} · ${t.isDepense ? 'Sortie' : 'Entrée'}',
+              subtitle: transactionListSubtitle(t),
               amount: fmtFcfa(t.isDepense ? t.debit : t.credit),
               amountColor: t.isDepense
                   ? const Color(0xFFB91C1C)
@@ -451,50 +451,38 @@ class _ComptaHistoriqueTabState extends State<ComptaHistoriqueTab>
   void _showOperationDetail(TransactionComptable t) {
     _showDetailSheet(
       title: 'Opération de caisse',
-      rows: [
-        _DetailEntry('Date', formatDateFr(t.dateTransaction)),
-        _DetailEntry('Type', t.isDepense ? 'Sortie' : 'Entrée'),
-        _DetailEntry('Description', t.descriptionAffichee),
-        _DetailEntry('Site', t.site ?? '—'),
-        _DetailEntry('Demandeur', t.demandeAuteur ?? '—'),
-        _DetailEntry(
-          t.isDepense ? 'Sortie' : 'Entrée',
-          fmtFcfa(t.isDepense ? t.debit : t.credit),
-        ),
-      ],
+      children: buildTransactionDetailContent(
+        t,
+        showValidationDate: true,
+      ),
     );
   }
 
   void _showDemandeDetail(DemandeAPayer d) {
+    final dateJourCaisse =
+        d is CaisseDemandeHistorique ? d.dateJourCaisse : null;
     _showDetailSheet(
       title: 'Détail opération',
-      rows: [
-        _DetailEntry('Raison', d.raisonBonCommande),
-        _DetailEntry('Client', d.client),
-        _DetailEntry('Auteur', d.auteur ?? '—'),
-        _DetailEntry('Date à décaisser', formatDateFr(d.dateADecaisser)),
-        _DetailEntry('Montant demandé', fmtFcfa(d.montantDemande)),
-        _DetailEntry('Montant donné', fmtFcfa(d.montantAttendu)),
-        _DetailEntry('Statut', d.statut ?? '—'),
-        if (d.retour != null && d.retour!.trim().isNotEmpty)
-          _DetailEntry('Retour', d.retour!),
-      ],
+      children: buildDemandeDetailContent(
+        d,
+        dateJourCaisse: dateJourCaisse,
+      ),
     );
   }
 
   void _showFactureDetail(FacturationCompta f) {
     _showDetailSheet(
       title: 'Facture payée',
-      rows: [
-        _DetailEntry('Client', f.clientNom ?? '—'),
-        _DetailEntry('Réf. facture', f.dolibarrRef ?? '—'),
-        _DetailEntry('Mois', f.mois),
-        _DetailEntry('Montant', fmtFcfa(f.montantFacture)),
-        _DetailEntry(
+      children: [
+        ComptaDetailRow('Client', f.clientNom ?? '—'),
+        ComptaDetailRow('Réf. facture', f.dolibarrRef ?? '—'),
+        ComptaDetailRow('Mois', f.mois),
+        ComptaDetailRow('Montant', fmtFcfa(f.montantFacture)),
+        ComptaDetailRow(
           'Date création',
           formatDateFr(f.dolibarrDateCreation),
         ),
-        _DetailEntry(
+        ComptaDetailRow(
           'Décharge déposée',
           formatDateFr(f.dechargeEnvoyeeLe),
         ),
@@ -505,25 +493,25 @@ class _ComptaHistoriqueTabState extends State<ComptaHistoriqueTab>
   void _showRecetteDetail(PrevisionRecetteCompta r) {
     _showDetailSheet(
       title: 'Prévision recette payée',
-      rows: [
-        _DetailEntry('Libellé', r.libelle),
-        _DetailEntry('Client', r.clientAffiche),
-        _DetailEntry('Montant', fmtFcfa(r.montant)),
-        _DetailEntry('Date prévue', formatDateFr(r.datePaiementPrevue)),
-        _DetailEntry('Auteur', r.createdByEmail ?? '—'),
-        _DetailEntry(
+      children: [
+        ComptaDetailRow('Libellé', r.libelle),
+        ComptaDetailRow('Client', r.clientAffiche),
+        ComptaDetailRow('Montant', fmtFcfa(r.montant)),
+        ComptaDetailRow('Date prévue', formatDateFr(r.datePaiementPrevue)),
+        ComptaDetailRow('Auteur', r.createdByEmail ?? '—'),
+        ComptaDetailRow(
           'Marqué payé le',
           formatDateFr(r.dateMarquePaye?.substring(0, 10)),
         ),
         if (r.observation != null && r.observation!.trim().isNotEmpty)
-          _DetailEntry('Observation', r.observation!),
+          ComptaDetailRow('Observation', r.observation!),
       ],
     );
   }
 
   void _showDetailSheet({
     required String title,
-    required List<_DetailEntry> rows,
+    required List<Widget> children,
   }) {
     showModalBottomSheet<void>(
       context: context,
