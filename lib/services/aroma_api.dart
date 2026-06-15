@@ -16,6 +16,7 @@ import '../models/discipline_rh.dart';
 import '../models/recouvrement.dart';
 import '../models/galerie_fichier.dart';
 import '../models/galerie_folder.dart';
+import '../models/intervention.dart';
 import '../models/rh_dashboard.dart';
 import '../models/tache.dart';
 
@@ -1291,6 +1292,154 @@ class AromaApi {
       }
     }
     return ApiException(msg, statusCode: res.statusCode);
+  }
+
+  Future<InterventionsListResult> listInterventions({
+    String? typeIntervention,
+    String? dateFrom,
+    String? dateTo,
+    int limit = 200,
+    int skip = 0,
+  }) async {
+    final q = <String, String>{
+      'limit': '$limit',
+      'skip': '$skip',
+    };
+    if (typeIntervention != null && typeIntervention.isNotEmpty) {
+      q['type_intervention'] = typeIntervention;
+    }
+    if (dateFrom != null && dateFrom.isNotEmpty) q['date_from'] = dateFrom;
+    if (dateTo != null && dateTo.isNotEmpty) q['date_to'] = dateTo;
+
+    final res = await _client.get(
+      _uri('/api/interventions', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return InterventionsListResult.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+      if (decoded is List) {
+        final items = decoded
+            .whereType<Map>()
+            .map((e) => Intervention.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        return InterventionsListResult(items: items, total: items.length);
+      }
+      throw ApiException('Réponse interventions invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Intervention> getIntervention(String id) async {
+    final res = await _client.get(
+      _uri('/api/interventions/${Uri.encodeComponent(id)}'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return Intervention.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw ApiException('Réponse intervention invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<ExperienceAdc>> listExperienceAdc() async {
+    final res = await _client.get(
+      _uri('/api/experience-adc'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse ADC invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => ExperienceAdc.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<TransportIntervention>> listTransports() async {
+    final res = await _client.get(
+      _uri('/api/transports'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse transports invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map(
+            (e) => TransportIntervention.fromJson(
+              Map<String, dynamic>.from(e),
+            ),
+          )
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<ReparationsListResult> listReparations({
+    String? search,
+    String? statut,
+    int limit = 100,
+    int skip = 0,
+  }) async {
+    final q = <String, String>{
+      'limit': '$limit',
+      'skip': '$skip',
+    };
+    if (search != null && search.isNotEmpty) q['search'] = search;
+    if (statut != null && statut.isNotEmpty) q['statut'] = statut;
+
+    final res = await _client.get(
+      _uri('/api/reparations', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return ReparationsListResult.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+      if (decoded is List) {
+        final items = decoded
+            .whereType<Map>()
+            .map((e) => Reparation.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        return ReparationsListResult(items: items, total: items.length);
+      }
+      throw ApiException('Réponse réparations invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<RapportMensuelSummary> getRapportMensuelSummary(String mois) async {
+    final res = await _client.get(
+      _uri('/api/interventions/rapport-mensuel', {'mois': mois}),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return RapportMensuelSummary.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+      throw ApiException('Réponse rapport mensuel invalide.');
+    }
+    throw _errorFromResponse(res);
   }
 
   void close() {

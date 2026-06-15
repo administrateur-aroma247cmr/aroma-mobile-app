@@ -1,0 +1,990 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../models/intervention.dart';
+import '../../providers/auth_provider.dart';
+import '../../theme/aroma_theme.dart';
+import '../../utils/format_utils.dart';
+import '../../widgets/entity_scope_selector.dart';
+import 'interventions_ui.dart';
+
+// ─── Mes interventions ─────────────────────────────────────────────────────────
+
+class InterventionsListTab extends StatefulWidget {
+  const InterventionsListTab({super.key});
+
+  @override
+  State<InterventionsListTab> createState() => _InterventionsListTabState();
+}
+
+class _InterventionsListTabState extends State<InterventionsListTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  String? _error;
+  List<Intervention> _rows = [];
+  String _search = '';
+  String _monthKey = currentMonthIso();
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  String get _monthDateMin => '$_monthKey-01';
+
+  String get _monthDateMax {
+    final parts = _monthKey.split('-');
+    if (parts.length < 2) return _monthDateMin;
+    final y = int.tryParse(parts[0]) ?? DateTime.now().year;
+    final m = int.tryParse(parts[1]) ?? DateTime.now().month;
+    final last = DateTime(y, m + 1, 0);
+    return '${last.year.toString().padLeft(4, '0')}-'
+        '${last.month.toString().padLeft(2, '0')}-'
+        '${last.day.toString().padLeft(2, '0')}';
+  }
+
+  void _shiftMonth(int delta) {
+    final parts = _monthKey.split('-');
+    if (parts.length < 2) return;
+    var y = int.tryParse(parts[0]) ?? DateTime.now().year;
+    var m = int.tryParse(parts[1]) ?? DateTime.now().month;
+    m += delta;
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    setState(() {
+      _monthKey = '${y.toString().padLeft(4, '0')}-'
+          '${m.toString().padLeft(2, '0')}';
+    });
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<AuthProvider>().api;
+      final result = await api.listInterventions(
+        dateFrom: _monthDateMin,
+        dateTo: _monthDateMax,
+        limit: 500,
+      );
+      if (!mounted) return;
+      setState(() {
+        _rows = result.items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  List<Intervention> get _filtered {
+    final q = _search.trim().toLowerCase();
+    return _rows.where((i) {
+      if (q.isEmpty) return true;
+      return i.titreAffiche.toLowerCase().contains(q) ||
+          (i.clientNom ?? '').toLowerCase().contains(q) ||
+          (i.ref ?? '').toLowerCase().contains(q) ||
+          (i.typeIntervention ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void _showDetail(Intervention i) {
+    showInterventionsDetailSheet(
+      context: context,
+      title: 'Intervention',
+      children: [
+        if ((i.ref ?? '').isNotEmpty)
+          InterventionsDetailRow('Référence', i.ref!),
+        InterventionsDetailRow('Type', i.typeIntervention ?? '—'),
+        InterventionsDetailRow('Client', i.clientNom ?? '—'),
+        InterventionsDetailRow('Site', i.siteAffiche.isEmpty ? '—' : i.siteAffiche),
+        InterventionsDetailRow('Ville', i.ville ?? '—'),
+        InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
+        InterventionsDetailRow('État', i.etat ?? '—'),
+        InterventionsDetailRow('Technicien', i.technicienNom ?? '—'),
+        InterventionsDetailRow('Auteur', i.auteur ?? '—'),
+        if ((i.description ?? '').trim().isNotEmpty)
+          InterventionsDetailRow('Description', i.description!.trim()),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return interventionsErrorState(message: _error!, onRetry: _reload);
+    }
+
+    final rows = _filtered;
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const InterventionsSectionHeader(
+            title: 'Mes interventions',
+            subtitle: 'Interventions terrain — aligné CRM web',
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _shiftMonth(-1),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              Expanded(
+                child: Text(
+                  monthLabelFr(_monthKey),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _shiftMonth(1),
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher client, réf., type…',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (v) => setState(() => _search = v),
+          ),
+          const SizedBox(height: 16),
+          if (rows.isEmpty)
+            const InterventionsEmptyState(
+              title: 'Aucune intervention',
+              subtitle: 'Aucune intervention pour cette période.',
+            )
+          else
+            ...rows.map(
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InterventionsListCard(
+                  title: i.titreAffiche,
+                  subtitle:
+                      '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
+                  trailing: i.etat,
+                  onTap: () => _showDetail(i),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Mon calendrier ────────────────────────────────────────────────────────────
+
+class InterventionsCalendarTab extends StatefulWidget {
+  const InterventionsCalendarTab({super.key});
+
+  @override
+  State<InterventionsCalendarTab> createState() =>
+      _InterventionsCalendarTabState();
+}
+
+class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  String? _error;
+  List<Intervention> _rows = [];
+  late DateTime _focusedMonth;
+  int? _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _focusedMonth = DateTime(now.year, now.month);
+    _reload();
+  }
+
+  String get _monthKey =>
+      '${_focusedMonth.year.toString().padLeft(4, '0')}-'
+      '${_focusedMonth.month.toString().padLeft(2, '0')}';
+
+  String get _monthDateMin => '$_monthKey-01';
+
+  String get _monthDateMax {
+    final last = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0);
+    return '${last.year.toString().padLeft(4, '0')}-'
+        '${last.month.toString().padLeft(2, '0')}-'
+        '${last.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<AuthProvider>().api;
+      final result = await api.listInterventions(
+        dateFrom: _monthDateMin,
+        dateTo: _monthDateMax,
+        limit: 500,
+      );
+      if (!mounted) return;
+      setState(() {
+        _rows = result.items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _shiftMonth(int delta) {
+    setState(() {
+      _focusedMonth =
+          DateTime(_focusedMonth.year, _focusedMonth.month + delta);
+      _selectedDay = null;
+    });
+    _reload();
+  }
+
+  Map<int, List<Intervention>> _byDay() {
+    final map = <int, List<Intervention>>{};
+    for (final i in _rows) {
+      final raw = i.dateIntervention;
+      if (raw == null || raw.length < 10) continue;
+      final d = DateTime.tryParse(raw.substring(0, 10));
+      if (d == null) continue;
+      if (d.year != _focusedMonth.year || d.month != _focusedMonth.month) {
+        continue;
+      }
+      map.putIfAbsent(d.day, () => []).add(i);
+    }
+    return map;
+  }
+
+  void _showDetail(Intervention i) {
+    showInterventionsDetailSheet(
+      context: context,
+      title: i.titreAffiche,
+      children: [
+        InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
+        InterventionsDetailRow('Type', i.typeIntervention ?? '—'),
+        InterventionsDetailRow('Client', i.clientNom ?? '—'),
+        InterventionsDetailRow('Site', i.siteAffiche.isEmpty ? '—' : i.siteAffiche),
+        InterventionsDetailRow('État', i.etat ?? '—'),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return interventionsErrorState(message: _error!, onRetry: _reload);
+    }
+
+    final byDay = _byDay();
+    final first = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+    final daysInMonth =
+        DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
+    final startPad = first.weekday - 1;
+    final selected = _selectedDay;
+    final dayItems = selected != null ? (byDay[selected] ?? []) : <Intervention>[];
+
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const InterventionsSectionHeader(
+            title: 'Mon calendrier',
+            subtitle: 'Planning des interventions du mois',
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _shiftMonth(-1),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              Expanded(
+                child: Text(
+                  monthLabelFr(_monthKey),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _shiftMonth(1),
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          GridView.count(
+            crossAxisCount: 7,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              for (final label in ['L', 'M', 'M', 'J', 'V', 'S', 'D'])
+                Center(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AromaColors.zinc500,
+                    ),
+                  ),
+                ),
+              for (var i = 0; i < startPad; i++) const SizedBox.shrink(),
+              for (var day = 1; day <= daysInMonth; day++)
+                _CalendarDayCell(
+                  day: day,
+                  count: byDay[day]?.length ?? 0,
+                  selected: selected == day,
+                  onTap: () => setState(() => _selectedDay = day),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (selected == null)
+            const Text(
+              'Sélectionnez un jour pour voir les interventions.',
+              style: TextStyle(color: AromaColors.zinc500),
+            )
+          else if (dayItems.isEmpty)
+            Text(
+              'Aucune intervention le $selected/${_focusedMonth.month}.',
+              style: const TextStyle(color: AromaColors.zinc500),
+            )
+          else
+            ...dayItems.map(
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InterventionsListCard(
+                  title: i.titreAffiche,
+                  subtitle:
+                      '${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
+                  trailing: i.etat,
+                  onTap: () => _showDetail(i),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarDayCell extends StatelessWidget {
+  const _CalendarDayCell({
+    required this.day,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int day;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: selected
+                ? InterventionsUi.accent.withValues(alpha: 0.15)
+                : null,
+            borderRadius: BorderRadius.circular(8),
+            border: selected
+                ? Border.all(color: InterventionsUi.gradientStart)
+                : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '$day',
+                style: TextStyle(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? InterventionsUi.gradientStart
+                      : AromaColors.zinc900,
+                ),
+              ),
+              if (count > 0)
+                Container(
+                  margin: const EdgeInsets.only(top: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: InterventionsUi.gradientStart,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── ADC ───────────────────────────────────────────────────────────────────────
+
+class InterventionsAdcTab extends StatefulWidget {
+  const InterventionsAdcTab({super.key});
+
+  @override
+  State<InterventionsAdcTab> createState() => _InterventionsAdcTabState();
+}
+
+class _InterventionsAdcTabState extends State<InterventionsAdcTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  String? _error;
+  List<ExperienceAdc> _rows = [];
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<AuthProvider>().api;
+      final rows = await api.listExperienceAdc();
+      if (!mounted) return;
+      setState(() {
+        _rows = rows;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  List<ExperienceAdc> get _filtered {
+    final q = _search.trim().toLowerCase();
+    return _rows.where((a) {
+      if (q.isEmpty) return true;
+      return a.titreAffiche.toLowerCase().contains(q) ||
+          (a.siteName ?? '').toLowerCase().contains(q) ||
+          (a.statut ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void _showDetail(ExperienceAdc a) {
+    showInterventionsDetailSheet(
+      context: context,
+      title: 'Appel de courtoisie',
+      children: [
+        InterventionsDetailRow('Client', a.clientName ?? '—'),
+        InterventionsDetailRow('Site', a.siteName ?? '—'),
+        InterventionsDetailRow('Statut', a.statut ?? '—'),
+        InterventionsDetailRow('Ressenti', a.ressenti ?? '—'),
+        InterventionsDetailRow(
+          'Date planifiée',
+          formatDateFr(a.datePlanifiee),
+        ),
+        InterventionsDetailRow('Date appel', formatDateFr(a.dateAppel)),
+        InterventionsDetailRow('Intervention', a.interventionRef ?? '—'),
+        if ((a.commentaire ?? '').trim().isNotEmpty)
+          InterventionsDetailRow('Commentaire', a.commentaire!.trim()),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return interventionsErrorState(message: _error!, onRetry: _reload);
+    }
+
+    final rows = _filtered;
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const InterventionsSectionHeader(
+            title: 'Mes appels de courtoisie (ADC)',
+            subtitle: 'Suivi des contacts clients après intervention',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher client, site, statut…',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (v) => setState(() => _search = v),
+          ),
+          const SizedBox(height: 16),
+          if (rows.isEmpty)
+            const InterventionsEmptyState(
+              title: 'Aucun ADC',
+              icon: Icons.phone_in_talk_outlined,
+            )
+          else
+            ...rows.map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InterventionsListCard(
+                  title: a.titreAffiche,
+                  subtitle:
+                      '${formatDateFr(a.datePlanifiee ?? a.dateAppel)} · ${a.siteName ?? '—'} · ${a.statut ?? '—'}',
+                  onTap: () => _showDetail(a),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Transport ─────────────────────────────────────────────────────────────────
+
+class InterventionsTransportTab extends StatefulWidget {
+  const InterventionsTransportTab({super.key});
+
+  @override
+  State<InterventionsTransportTab> createState() =>
+      _InterventionsTransportTabState();
+}
+
+class _InterventionsTransportTabState extends State<InterventionsTransportTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  String? _error;
+  List<TransportIntervention> _rows = [];
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<AuthProvider>().api;
+      final rows = await api.listTransports();
+      if (!mounted) return;
+      setState(() {
+        _rows = rows;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  List<TransportIntervention> get _filtered {
+    final q = _search.trim().toLowerCase();
+    return _rows.where((t) {
+      if (q.isEmpty) return true;
+      return t.titreAffiche.toLowerCase().contains(q) ||
+          (t.ville ?? '').toLowerCase().contains(q) ||
+          (t.technicienNom ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void _showDetail(TransportIntervention t) {
+    showInterventionsDetailSheet(
+      context: context,
+      title: 'Fiche transport',
+      children: [
+        InterventionsDetailRow('Date', formatDateFr(t.dateTransport)),
+        InterventionsDetailRow('Ville', t.ville ?? '—'),
+        InterventionsDetailRow('Raison', t.raisonDeplacement ?? '—'),
+        InterventionsDetailRow('Technicien', t.technicienNom ?? '—'),
+        InterventionsDetailRow('Points trajet', '${t.pointsCount}'),
+        if (t.montantTotal != null)
+          InterventionsDetailRow('Montant total', fmtFcfa(t.montantTotal)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return interventionsErrorState(message: _error!, onRetry: _reload);
+    }
+
+    final rows = _filtered;
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const InterventionsSectionHeader(
+            title: 'Mon transport',
+            subtitle: 'Fiches de déplacement terrain',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher ville, raison…',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (v) => setState(() => _search = v),
+          ),
+          const SizedBox(height: 16),
+          if (rows.isEmpty)
+            const InterventionsEmptyState(
+              title: 'Aucune fiche transport',
+              icon: Icons.local_shipping_outlined,
+            )
+          else
+            ...rows.map(
+              (t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InterventionsListCard(
+                  title: t.titreAffiche,
+                  subtitle:
+                      '${formatDateFr(t.dateTransport)} · ${t.technicienNom ?? '—'} · ${t.pointsCount} point(s)',
+                  trailing:
+                      t.montantTotal != null ? fmtFcfa(t.montantTotal) : null,
+                  onTap: () => _showDetail(t),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Réparations ─────────────────────────────────────────────────────────────
+
+class InterventionsReparationsTab extends StatefulWidget {
+  const InterventionsReparationsTab({super.key});
+
+  @override
+  State<InterventionsReparationsTab> createState() =>
+      _InterventionsReparationsTabState();
+}
+
+class _InterventionsReparationsTabState extends State<InterventionsReparationsTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  String? _error;
+  List<Reparation> _rows = [];
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<AuthProvider>().api;
+      final result = await api.listReparations(limit: 200);
+      if (!mounted) return;
+      setState(() {
+        _rows = result.items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  List<Reparation> get _filtered {
+    final q = _search.trim().toLowerCase();
+    return _rows.where((r) {
+      if (q.isEmpty) return true;
+      return r.titreAffiche.toLowerCase().contains(q) ||
+          r.clientAffiche.toLowerCase().contains(q) ||
+          r.statut.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void _showDetail(Reparation r) {
+    showInterventionsDetailSheet(
+      context: context,
+      title: 'Réparation',
+      children: [
+        InterventionsDetailRow('Référence', r.reference ?? '—'),
+        InterventionsDetailRow('Client', r.clientAffiche),
+        InterventionsDetailRow('Panne', r.panne),
+        InterventionsDetailRow('Statut', r.statut),
+        InterventionsDetailRow('Technicien', r.technicienNom ?? '—'),
+        InterventionsDetailRow('Type diffuseur', r.typeDiffuseur ?? '—'),
+        InterventionsDetailRow('Réf. diffuseur', r.referenceDiffuseur ?? '—'),
+        if ((r.descriptionProbleme ?? '').trim().isNotEmpty)
+          InterventionsDetailRow('Description', r.descriptionProbleme!.trim()),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return interventionsErrorState(message: _error!, onRetry: _reload);
+    }
+
+    final rows = _filtered;
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const InterventionsSectionHeader(
+            title: 'Mes réparations',
+            subtitle: 'Suivi des équipements en réparation',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Rechercher client, réf., statut…',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (v) => setState(() => _search = v),
+          ),
+          const SizedBox(height: 16),
+          if (rows.isEmpty)
+            const InterventionsEmptyState(
+              title: 'Aucune réparation',
+              icon: Icons.handyman_outlined,
+            )
+          else
+            ...rows.map(
+              (r) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InterventionsListCard(
+                  title: r.titreAffiche,
+                  subtitle:
+                      '${r.clientAffiche} · ${r.typeDiffuseur ?? '—'} · ${r.statut}',
+                  onTap: () => _showDetail(r),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Rapports d'interactions ─────────────────────────────────────────────────
+
+class InterventionsRapportsTab extends StatefulWidget {
+  const InterventionsRapportsTab({super.key});
+
+  @override
+  State<InterventionsRapportsTab> createState() =>
+      _InterventionsRapportsTabState();
+}
+
+class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
+    with EntityScopeReloadMixin {
+  bool _loading = true;
+  String? _error;
+  RapportMensuelSummary? _summary;
+  String _monthKey = currentMonthIso();
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _shiftMonth(int delta) {
+    final parts = _monthKey.split('-');
+    if (parts.length < 2) return;
+    var y = int.tryParse(parts[0]) ?? DateTime.now().year;
+    var m = int.tryParse(parts[1]) ?? DateTime.now().month;
+    m += delta;
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    setState(() {
+      _monthKey = '${y.toString().padLeft(4, '0')}-'
+          '${m.toString().padLeft(2, '0')}';
+    });
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<AuthProvider>().api;
+      final summary = await api.getRapportMensuelSummary(_monthKey);
+      if (!mounted) return;
+      setState(() {
+        _summary = summary;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _showDetail(RapportMensuelClientSummary c) {
+    showInterventionsDetailSheet(
+      context: context,
+      title: c.clientNom,
+      children: [
+        InterventionsDetailRow('Interventions', '${c.nbInterventions}'),
+        InterventionsDetailRow('ADC', '${c.nbAdc}'),
+        InterventionsDetailRow('VDC', '${c.nbVdc}'),
+        InterventionsDetailRow('Planning', '${c.nbPlanning}'),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    watchEntityScope(_reload);
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return interventionsErrorState(message: _error!, onRetry: _reload);
+    }
+
+    final clients = _summary?.clients ?? [];
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const InterventionsSectionHeader(
+            title: "Mes rapports d'interactions",
+            subtitle: 'Synthèse mensuelle par client',
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _shiftMonth(-1),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              Expanded(
+                child: Text(
+                  _summary?.moisLabel.isNotEmpty == true
+                      ? _summary!.moisLabel
+                      : monthLabelFr(_monthKey),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _shiftMonth(1),
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (clients.isEmpty)
+            const InterventionsEmptyState(
+              title: 'Aucun rapport pour ce mois',
+              icon: Icons.description_outlined,
+            )
+          else
+            ...clients.map(
+              (c) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InterventionsListCard(
+                  title: c.clientNom,
+                  subtitle:
+                      '${c.nbInterventions} interv. · ${c.nbAdc} ADC · ${c.nbVdc} VDC',
+                  trailing: '${c.nbPlanning} plan.',
+                  onTap: () => _showDetail(c),
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}

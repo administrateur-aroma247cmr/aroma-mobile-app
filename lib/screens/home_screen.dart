@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../screens/caisse_screen.dart';
 import '../screens/compta_hub_screen.dart';
+import '../screens/interventions_hub_screen.dart';
 import '../screens/kpi_screen.dart';
 import '../screens/rh_hub_screen.dart';
 import '../screens/tasks_screen.dart';
@@ -61,6 +62,17 @@ class HomeScreen extends StatelessWidget {
           ),
           icon: Icons.check_box_outlined,
           onTap: () => _openModule(context, const TasksScreen()),
+        ),
+      if (auth.canShowHomeModule('interventions'))
+        _HomeModule(
+          title: 'Mes interventions',
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0284C7), Color(0xFF0EA5E9)],
+          ),
+          icon: Icons.build_circle_outlined,
+          onTap: () => _openModule(context, const InterventionsHubScreen()),
         ),
       if (auth.canShowHomeModule('rh'))
         _HomeModule(

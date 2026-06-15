@@ -5,6 +5,7 @@ bool canShowHomeModuleTile(
   String moduleId, {
   required bool isPrivilegedStaff,
   required bool canAccessComptabilite,
+  required bool canAccessInterventions,
 }) {
   switch (moduleId) {
     case 'analytics':
@@ -13,6 +14,8 @@ bool canShowHomeModuleTile(
     case 'galerie':
     case 'caisse':
       return true;
+    case 'interventions':
+      return isPrivilegedStaff || canAccessInterventions;
     case 'validation':
       return isPrivilegedStaff;
     case 'compta':
