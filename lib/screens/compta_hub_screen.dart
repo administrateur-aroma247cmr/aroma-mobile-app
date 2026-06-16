@@ -11,7 +11,9 @@ import '../widgets/compta/compta_ui.dart';
 import '../widgets/entity_scope_selector.dart';
 
 class ComptaHubScreen extends StatefulWidget {
-  const ComptaHubScreen({super.key});
+  const ComptaHubScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<ComptaHubScreen> createState() => _ComptaHubScreenState();
@@ -80,8 +82,9 @@ class _ComptaHubScreenState extends State<ComptaHubScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ComptaHeader(subtitle: 'Comptabilité · $moisLabel'),
-            const SizedBox(height: 8),
+            if (!widget.embedded)
+              _ComptaHeader(subtitle: 'Comptabilité · $moisLabel'),
+            if (!widget.embedded) const SizedBox(height: 8),
             ComptaTabPills(
               tabs: tabs,
               selected: selectedTab,

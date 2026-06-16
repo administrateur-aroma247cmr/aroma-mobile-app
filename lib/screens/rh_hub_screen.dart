@@ -15,7 +15,9 @@ import '../widgets/rh/rh_ui.dart';
 import 'rh_recap_screen.dart';
 
 class RhHubScreen extends StatefulWidget {
-  const RhHubScreen({super.key});
+  const RhHubScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<RhHubScreen> createState() => _RhHubScreenState();
@@ -30,23 +32,29 @@ class _RhHubScreenState extends State<RhHubScreen> {
     if (auth.canViewRhExecutiveTabs) {
       if (_selectedCollabId != null) {
         return _RhCollaborateurDetailShell(
+          embedded: widget.embedded,
           collaborateurId: _selectedCollabId!,
           onBack: () => setState(() => _selectedCollabId = null),
         );
       }
       return _RhExecutiveShell(
+        embedded: widget.embedded,
         onSelectCollaborateur: (id) => setState(() => _selectedCollabId = id),
       );
     }
-    return const _RhCollaborateurShell();
+    return _RhCollaborateurShell(embedded: widget.embedded);
   }
 }
 
 // ─── Direction ───────────────────────────────────────────────────────────────
 
 class _RhExecutiveShell extends StatefulWidget {
-  const _RhExecutiveShell({required this.onSelectCollaborateur});
+  const _RhExecutiveShell({
+    required this.embedded,
+    required this.onSelectCollaborateur,
+  });
 
+  final bool embedded;
   final ValueChanged<String> onSelectCollaborateur;
 
   @override
@@ -107,25 +115,47 @@ class _RhExecutiveShellState extends State<_RhExecutiveShell> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _RhHeader(
-              title: 'Espace RH',
-              subtitle: 'Direction · ${_collaborateurs.length} collaborateurs',
-              searchExpanded: _searchExpanded && _currentTab == 'collabs',
-              searchFocus: _searchFocus,
-              showSearch: _currentTab == 'collabs',
-              onSearchToggle: () {
-                setState(() {
-                  _searchExpanded = !_searchExpanded;
-                  if (_searchExpanded) {
-                    _searchFocus.requestFocus();
-                  } else {
-                    _search = '';
-                    _searchFocus.unfocus();
-                  }
-                });
-              },
-              onSearchChanged: (v) => setState(() => _search = v),
-            ),
+            if (widget.embedded)
+              _RhCompactToolbar(
+                subtitle:
+                    'Direction · ${_collaborateurs.length} collaborateurs',
+                showSearch: _currentTab == 'collabs',
+                searchExpanded: _searchExpanded && _currentTab == 'collabs',
+                searchFocus: _searchFocus,
+                onSearchToggle: () {
+                  setState(() {
+                    _searchExpanded = !_searchExpanded;
+                    if (_searchExpanded) {
+                      _searchFocus.requestFocus();
+                    } else {
+                      _search = '';
+                      _searchFocus.unfocus();
+                    }
+                  });
+                },
+                onSearchChanged: (v) => setState(() => _search = v),
+              )
+            else
+              _RhHeader(
+                title: 'Espace RH',
+                subtitle:
+                    'Direction · ${_collaborateurs.length} collaborateurs',
+                searchExpanded: _searchExpanded && _currentTab == 'collabs',
+                searchFocus: _searchFocus,
+                showSearch: _currentTab == 'collabs',
+                onSearchToggle: () {
+                  setState(() {
+                    _searchExpanded = !_searchExpanded;
+                    if (_searchExpanded) {
+                      _searchFocus.requestFocus();
+                    } else {
+                      _search = '';
+                      _searchFocus.unfocus();
+                    }
+                  });
+                },
+                onSearchChanged: (v) => setState(() => _search = v),
+              ),
             const SizedBox(height: 8),
             RhTabPills(
               tabs: _tabs,
@@ -154,7 +184,7 @@ class _RhExecutiveShellState extends State<_RhExecutiveShell> {
                           : ListView.separated(
                               padding: const EdgeInsets.all(16),
                               itemCount: filtered.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (_, _) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (context, i) {
                                 final c = filtered[i];
@@ -179,10 +209,12 @@ class _RhExecutiveShellState extends State<_RhExecutiveShell> {
 
 class _RhCollaborateurDetailShell extends StatefulWidget {
   const _RhCollaborateurDetailShell({
+    required this.embedded,
     required this.collaborateurId,
     required this.onBack,
   });
 
+  final bool embedded;
   final String collaborateurId;
   final VoidCallback onBack;
 
@@ -230,6 +262,7 @@ class _RhCollaborateurDetailShellState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _RhHeader(
+              embedded: widget.embedded,
               title: _name.isEmpty ? 'Collaborateur' : _name,
               subtitle: 'Fiche collaborateur',
               onBack: widget.onBack,
@@ -265,7 +298,9 @@ class _RhCollaborateurDetailShellState
 // ─── Collaborateur ───────────────────────────────────────────────────────────
 
 class _RhCollaborateurShell extends StatefulWidget {
-  const _RhCollaborateurShell();
+  const _RhCollaborateurShell({required this.embedded});
+
+  final bool embedded;
 
   @override
   State<_RhCollaborateurShell> createState() => _RhCollaborateurShellState();
@@ -291,11 +326,12 @@ class _RhCollaborateurShellState extends State<_RhCollaborateurShell> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _RhHeader(
-              title: 'Mon espace RH',
-              subtitle: 'Profil, demandes, discipline et documents',
-            ),
-            const SizedBox(height: 8),
+            if (!widget.embedded)
+              const _RhHeader(
+                title: 'Mon espace RH',
+                subtitle: 'Profil, demandes, discipline et documents',
+              ),
+            if (!widget.embedded) const SizedBox(height: 8),
             RhTabPills(
               tabs: _tabs,
               selected: _currentTab,
@@ -322,10 +358,79 @@ class _RhCollaborateurShellState extends State<_RhCollaborateurShell> {
 
 // ─── Header partagé ──────────────────────────────────────────────────────────
 
+class _RhCompactToolbar extends StatelessWidget {
+  const _RhCompactToolbar({
+    required this.subtitle,
+    required this.showSearch,
+    required this.searchExpanded,
+    required this.searchFocus,
+    required this.onSearchToggle,
+    required this.onSearchChanged,
+  });
+
+  final String subtitle;
+  final bool showSearch;
+  final bool searchExpanded;
+  final FocusNode searchFocus;
+  final VoidCallback onSearchToggle;
+  final ValueChanged<String> onSearchChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AromaColors.zinc500,
+                  ),
+                ),
+              ),
+              if (showSearch)
+                IconButton(
+                  onPressed: onSearchToggle,
+                  icon: Icon(
+                    searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                  ),
+                ),
+            ],
+          ),
+          if (showSearch && searchExpanded) ...[
+            const SizedBox(height: 8),
+            TextField(
+              focusNode: searchFocus,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Rechercher un collaborateur…',
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: AromaColors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: onSearchChanged,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _RhHeader extends StatelessWidget {
   const _RhHeader({
     required this.title,
     required this.subtitle,
+    this.embedded = false,
     this.onBack,
     this.searchExpanded = false,
     this.searchFocus,
@@ -336,6 +441,7 @@ class _RhHeader extends StatelessWidget {
 
   final String title;
   final String subtitle;
+  final bool embedded;
   final VoidCallback? onBack;
   final bool searchExpanded;
   final FocusNode? searchFocus;
@@ -357,20 +463,22 @@ class _RhHeader extends StatelessWidget {
                   onPressed: onBack,
                   icon: const Icon(Icons.arrow_back_rounded),
                 ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: RhUi.gradient,
-                  borderRadius: BorderRadius.circular(12),
+              if (!embedded || onBack == null) ...[
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: RhUi.gradient,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.groups_outlined,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.groups_outlined,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,7 +500,7 @@ class _RhHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              const EntityScopeAppBarAction(),
+              if (!embedded) const EntityScopeAppBarAction(),
               if (showSearch && onSearchToggle != null)
                 IconButton(
                   onPressed: onSearchToggle,

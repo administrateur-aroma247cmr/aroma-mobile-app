@@ -12,7 +12,9 @@ import '../widgets/entity_scope_selector.dart';
 import '../widgets/modern_bottom_sheet.dart';
 
 class CaisseScreen extends StatefulWidget {
-  const CaisseScreen({super.key});
+  const CaisseScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<CaisseScreen> createState() => _CaisseScreenState();
@@ -193,8 +195,8 @@ class _CaisseScreenState extends State<CaisseScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _CaisseHeader(),
-            const SizedBox(height: 8),
+            if (!widget.embedded) const _CaisseHeader(),
+            if (!widget.embedded) const SizedBox(height: 8),
             CaisseTabPills(
               tabs: _tabs,
               selected: _currentTab,

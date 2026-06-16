@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../navigation/app_modules.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../widgets/aroma_logo.dart';
 import '../widgets/entity_scope_selector.dart';
+import 'analytics_screen.dart';
+import 'caisse_screen.dart';
+import 'compta_hub_screen.dart';
 import 'galerie_screen.dart';
 import 'home_screen.dart';
+import 'interventions_hub_screen.dart';
 import 'ma_validation_screen.dart';
+import 'rh_hub_screen.dart';
+import 'tasks_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -17,113 +24,70 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int _index = 0;
+  AppModuleId _currentModule = AppModuleId.home;
 
   Future<void> _logout() async {
     if (!mounted) return;
     await context.read<AuthProvider>().logout();
   }
 
-  static Widget _drawerIconHome({required bool selected}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: selected ? AromaColors.zinc100 : AromaColors.inputFill,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: selected ? AromaColors.zinc200 : const Color(0x14000000),
-        ),
-      ),
-      child: Icon(
-        Icons.home_rounded,
-        size: 22,
-        color: selected ? AromaColors.primary : AromaColors.zinc500,
-      ),
-    );
+  void _selectModule(AppModuleId module) {
+    setState(() => _currentModule = module);
   }
 
-  static Widget _drawerIconGalerie({required bool selected}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: selected
-              ? [
-                  AromaColors.galerieGradientStart,
-                  AromaColors.galerieGradientEnd,
-                ]
-              : [
-                  AromaColors.galerieGradientStart.withValues(alpha: 0.85),
-                  AromaColors.galerieGradientEnd.withValues(alpha: 0.85),
-                ],
-        ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: AromaColors.galerieGradientEnd.withValues(alpha: 0.35),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: const Icon(Icons.image_rounded, size: 22, color: Colors.white),
-    );
-  }
-
-  static Widget _drawerIconValidation({required bool selected}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: selected
-              ? const [Color(0xFF22C55E), Color(0xFF16A34A)]
-              : [
-                  const Color(0xFF22C55E).withValues(alpha: 0.85),
-                  const Color(0xFF16A34A).withValues(alpha: 0.85),
-                ],
-        ),
-      ),
-      child: const Icon(Icons.verified_rounded, size: 22, color: Colors.white),
-    );
+  Widget _pageFor(AppModuleId id, AuthProvider auth) {
+    final entityKey = auth.currentEntityCode;
+    switch (id) {
+      case AppModuleId.home:
+        return HomeScreen(onOpenModule: _selectModule);
+      case AppModuleId.analytics:
+        return AnalyticsScreen(
+          key: ValueKey('analytics-$entityKey'),
+          embedded: true,
+        );
+      case AppModuleId.tasks:
+        return TasksScreen(key: ValueKey('tasks-$entityKey'), embedded: true);
+      case AppModuleId.interventions:
+        return InterventionsHubScreen(
+          key: ValueKey('interventions-$entityKey'),
+          embedded: true,
+        );
+      case AppModuleId.rh:
+        return RhHubScreen(key: ValueKey('rh-$entityKey'), embedded: true);
+      case AppModuleId.compta:
+        return ComptaHubScreen(
+          key: ValueKey('compta-$entityKey'),
+          embedded: true,
+        );
+      case AppModuleId.caisse:
+        return CaisseScreen(
+          key: ValueKey('caisse-$entityKey'),
+          embedded: true,
+        );
+      case AppModuleId.validation:
+        return MaValidationScreen(
+          key: ValueKey('validation-$entityKey'),
+          embedded: true,
+        );
+      case AppModuleId.galerie:
+        return GalerieScreen(
+          key: ValueKey('galerie-$entityKey'),
+          embedded: true,
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isPrivilegedStaff = auth.isPrivilegedStaff;
-    final entityCode = auth.currentEntityCode;
-    final pages = <Widget>[
-      HomeScreen(
-        key: const PageStorageKey<String>('home'),
-        onOpenGalerie: () => setState(() => _index = 1),
-        onOpenValidation: isPrivilegedStaff ? () => setState(() => _index = 2) : null,
-      ),
-      GalerieScreen(
-        key: ValueKey('galerie-$entityCode'),
-        embedded: true,
-      ),
-      if (isPrivilegedStaff)
-        MaValidationScreen(
-          key: ValueKey('validation-$entityCode'),
-          embedded: true,
-        ),
-    ];
-    final safeIndex = _index >= pages.length ? 0 : _index;
-    final title = switch (safeIndex) {
-      0 => 'Mon tableau de bord',
-      1 => 'Ma galerie',
-      _ => 'Ma validation',
-    };
+    final modules = visibleAppModules(auth);
+    if (!modules.any((m) => m.id == _currentModule)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentModule = AppModuleId.home);
+      });
+    }
+    final currentEntry = appModuleById(_currentModule);
+    final title = currentEntry?.title ?? 'Mon tableau de bord';
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
@@ -159,35 +123,22 @@ class _MainShellState extends State<MainShell> {
                   ],
                 ),
               ),
-              if (auth.showEntitySelector)
-                const EntityScopeSelector(),
+              if (auth.showEntitySelector) const EntityScopeSelector(),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
-                    ListTile(
-                      leading: _drawerIconHome(selected: _index == 0),
-                      title: const Text('Mon accueil'),
-                      selected: _index == 0,
-                      selectedTileColor: AromaColors.zinc100.withValues(
-                        alpha: 0.5,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      onTap: () {
-                        setState(() => _index = 0);
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    if (isPrivilegedStaff)
+                    for (final module in modules)
                       ListTile(
-                        leading: _drawerIconValidation(selected: false),
-                        title: const Text('Ma validation'),
+                        leading: appModuleDrawerIcon(
+                          module,
+                          selected: _currentModule == module.id,
+                        ),
+                        title: Text(module.title),
+                        selected: _currentModule == module.id,
+                        selectedTileColor: AromaColors.zinc100.withValues(
+                          alpha: 0.5,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -196,29 +147,10 @@ class _MainShellState extends State<MainShell> {
                           vertical: 4,
                         ),
                         onTap: () {
+                          setState(() => _currentModule = module.id);
                           Navigator.of(context).pop();
-                          setState(() => _index = 2);
                         },
                       ),
-                    ListTile(
-                      leading: _drawerIconGalerie(selected: _index == 1),
-                      title: const Text('Ma galerie'),
-                      selected: _index == 1,
-                      selectedTileColor: AromaColors.zinc100.withValues(
-                        alpha: 0.5,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      onTap: () {
-                        setState(() => _index = 1);
-                        Navigator.of(context).pop();
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -243,9 +175,15 @@ class _MainShellState extends State<MainShell> {
         ),
       ),
       body: IndexedStack(
-        index: safeIndex,
+        index: () {
+          final i = modules.indexWhere((m) => m.id == _currentModule);
+          return i >= 0 ? i : 0;
+        }(),
         sizing: StackFit.expand,
-        children: pages,
+        children: [
+          for (final module in modules)
+            _pageFor(module.id, auth),
+        ],
       ),
     );
   }

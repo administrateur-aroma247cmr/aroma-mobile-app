@@ -17,7 +17,9 @@ import '../widgets/analytics/views/analytics_stock_view.dart';
 import '../widgets/analytics/views/analytics_taches_view.dart';
 
 class AnalyticsScreen extends StatefulWidget {
-  const AnalyticsScreen({super.key});
+  const AnalyticsScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
@@ -91,10 +93,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     watchEntityScope(_reload);
     return Scaffold(
       backgroundColor: AromaColors.canvas,
-      appBar: AppBar(
-        title: const Text('Analytics'),
-        actions: const [EntityScopeAppBarAction()],
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('Analytics KPI'),
+              actions: const [EntityScopeAppBarAction()],
+            ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

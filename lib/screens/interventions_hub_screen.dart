@@ -9,7 +9,9 @@ import '../widgets/interventions/interventions_tabs.dart';
 import '../widgets/interventions/interventions_ui.dart';
 
 class InterventionsHubScreen extends StatefulWidget {
-  const InterventionsHubScreen({super.key});
+  const InterventionsHubScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<InterventionsHubScreen> createState() => _InterventionsHubScreenState();
@@ -68,8 +70,9 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _InterventionsHeader(subtitle: 'Interventions · $moisLabel'),
-            const SizedBox(height: 8),
+            if (!widget.embedded)
+              _InterventionsHeader(subtitle: 'Interventions · $moisLabel'),
+            if (!widget.embedded) const SizedBox(height: 8),
             InterventionsTabPills(
               tabs: _tabs,
               selected: selectedTab,

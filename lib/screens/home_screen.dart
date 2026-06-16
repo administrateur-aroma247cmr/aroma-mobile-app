@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../navigation/app_modules.dart';
 import '../providers/auth_provider.dart';
-import '../screens/caisse_screen.dart';
-import '../screens/compta_hub_screen.dart';
-import '../screens/interventions_hub_screen.dart';
-import '../screens/analytics_screen.dart';
-import '../screens/rh_hub_screen.dart';
-import '../screens/tasks_screen.dart';
 import '../theme/aroma_theme.dart';
 import '../widgets/aroma_logo.dart';
 
@@ -15,18 +10,10 @@ import '../widgets/aroma_logo.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
-    required this.onOpenGalerie,
-    this.onOpenValidation,
+    required this.onOpenModule,
   });
 
-  final VoidCallback onOpenGalerie;
-  final VoidCallback? onOpenValidation;
-
-  void _openModule(BuildContext context, Widget screen) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => screen),
-    );
-  }
+  final ValueChanged<AppModuleId> onOpenModule;
 
   @override
   Widget build(BuildContext context) {
@@ -40,99 +27,9 @@ class HomeScreen extends StatelessWidget {
       context,
     ).textTheme.bodyMedium?.copyWith(color: AromaColors.zinc500);
 
-    final modules = <_HomeModule>[
-      if (auth.canShowHomeModule('analytics'))
-        _HomeModule(
-          title: 'Analytics KPI',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF7C3AED), Color(0xFFC026D3)],
-          ),
-          icon: Icons.bar_chart_rounded,
-          onTap: () => _openModule(context, const AnalyticsScreen()),
-        ),
-      if (auth.canShowHomeModule('tasks'))
-        _HomeModule(
-          title: 'Mes tâches',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF8B5CF6), Color(0xFF4F46E5)],
-          ),
-          icon: Icons.check_box_outlined,
-          onTap: () => _openModule(context, const TasksScreen()),
-        ),
-      if (auth.canShowHomeModule('interventions'))
-        _HomeModule(
-          title: 'Mes interventions',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0284C7), Color(0xFF0EA5E9)],
-          ),
-          icon: Icons.build_circle_outlined,
-          onTap: () => _openModule(context, const InterventionsHubScreen()),
-        ),
-      if (auth.canShowHomeModule('rh'))
-        _HomeModule(
-          title: 'Mon espace RH',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
-          ),
-          icon: Icons.groups_outlined,
-          onTap: () => _openModule(context, const RhHubScreen()),
-        ),
-      if (auth.canShowHomeModule('compta'))
-        _HomeModule(
-          title: 'Ma comptabilité',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF059669), Color(0xFF0D9488)],
-          ),
-          icon: Icons.calculate_outlined,
-          onTap: () => _openModule(context, const ComptaHubScreen()),
-        ),
-      if (auth.canShowHomeModule('caisse'))
-        _HomeModule(
-          title: 'Ma caisse',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF97316), Color(0xFFD97706)],
-          ),
-          icon: Icons.account_balance_wallet_outlined,
-          onTap: () => _openModule(context, const CaisseScreen()),
-        ),
-      if (auth.canShowHomeModule('validation'))
-        _HomeModule(
-          title: 'Ma validation',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
-          ),
-          icon: Icons.verified_rounded,
-          onTap: onOpenValidation ?? () {},
-        ),
-      if (auth.canShowHomeModule('galerie'))
-        _HomeModule(
-          title: 'Ma galerie',
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AromaColors.galerieGradientStart,
-              AromaColors.galerieGradientEnd,
-            ],
-          ),
-          icon: Icons.image_outlined,
-          onTap: onOpenGalerie,
-        ),
-    ];
+    final modules = visibleAppModules(auth)
+        .where((m) => m.id != AppModuleId.home)
+        .toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
@@ -166,9 +63,13 @@ class HomeScreen extends StatelessWidget {
                 .map(
                   (m) => _ModuleCard(
                     title: m.title,
-                    gradient: m.gradient,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: m.gradientColors,
+                    ),
                     icon: m.icon,
-                    onTap: m.onTap,
+                    onTap: () => onOpenModule(m.id),
                   ),
                 )
                 .toList(),
@@ -177,20 +78,6 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class _HomeModule {
-  const _HomeModule({
-    required this.title,
-    required this.gradient,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String title;
-  final Gradient gradient;
-  final IconData icon;
-  final VoidCallback onTap;
 }
 
 class _ModuleCard extends StatefulWidget {

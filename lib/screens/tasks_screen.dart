@@ -19,7 +19,9 @@ import '../widgets/tasks_recap_tab.dart';
 enum _TaskScreenTab { active, starred, done, history, calendar, recap }
 
 class TasksScreen extends StatefulWidget {
-  const TasksScreen({super.key});
+  const TasksScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -366,6 +368,7 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
                 headerSliverBuilder: (context, innerBoxIsScrolled) => [
                   SliverToBoxAdapter(
                     child: _TasksHeader(
+                      embedded: widget.embedded,
                       compact: !isListTab,
                       searchExpanded: _searchExpanded,
                       searchFocus: _searchFocus,
@@ -487,6 +490,7 @@ class _TabConfig {
 
 class _TasksHeader extends StatelessWidget {
   const _TasksHeader({
+    required this.embedded,
     required this.compact,
     required this.searchExpanded,
     required this.searchFocus,
@@ -495,6 +499,7 @@ class _TasksHeader extends StatelessWidget {
     required this.stats,
   });
 
+  final bool embedded;
   final bool compact;
   final bool searchExpanded;
   final FocusNode searchFocus;
@@ -505,45 +510,68 @@ class _TasksHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      padding: EdgeInsets.fromLTRB(16, embedded ? 4 : 8, 8, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Mes tâches',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.5,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${stats.active} en cours'
-                      '${stats.overdue > 0 ? ' · ${stats.overdue} en retard' : ''}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AromaColors.zinc500,
+          if (!embedded)
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mes tâches',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                            ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const EntityScopeAppBarAction(),
-              if (!compact)
-                IconButton(
-                  onPressed: onSearchToggle,
-                  icon: Icon(
-                    searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                      const SizedBox(height: 2),
+                      Text(
+                        '${stats.active} en cours'
+                        '${stats.overdue > 0 ? ' · ${stats.overdue} en retard' : ''}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AromaColors.zinc500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
-          ),
+                const EntityScopeAppBarAction(),
+                if (!compact)
+                  IconButton(
+                    onPressed: onSearchToggle,
+                    icon: Icon(
+                      searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                    ),
+                  ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${stats.active} en cours'
+                    '${stats.overdue > 0 ? ' · ${stats.overdue} en retard' : ''}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AromaColors.zinc500,
+                    ),
+                  ),
+                ),
+                if (!compact)
+                  IconButton(
+                    onPressed: onSearchToggle,
+                    icon: Icon(
+                      searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                    ),
+                  ),
+              ],
+            ),
           if (!compact && searchExpanded) ...[
             const SizedBox(height: 8),
             TextField(

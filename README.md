@@ -1,17 +1,39 @@
-# aroma_jpc
+# aroma-mobile-app
 
-A new Flutter project.
+Application mobile Flutter pour **Aroma JPC**, connectée à l’API CRM Aroma.
 
-## Getting Started
+## Fonctionnalités
 
-This project is a starting point for a Flutter application.
+- Authentification et sélection d’entité (multi-entité)
+- Accueil, analytics, tâches, interventions
+- RH, comptabilité, caisse, validation
+- Galerie documentaire
 
-A few resources to get you started if this is your first Flutter project:
+## Prérequis
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) (SDK ^3.11)
+- Un appareil ou émulateur iOS / Android
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Installation
+
+```bash
+flutter pub get
+```
+
+Configurer l’URL de l’API dans `assets/env/app.env` :
+
+```env
+API_BASE_URL=https://aroma-jpc-crm-api.aroma-digitalisation.cloud
+```
+
+## Lancement
+
+```bash
+flutter run
+```
+
+## Stack
+
+- Flutter
+- Provider (état global)
+- HTTP (API REST Aroma)
