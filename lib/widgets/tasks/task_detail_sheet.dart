@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/tache.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
+import '../modern_bottom_sheet.dart';
 import 'task_ui.dart';
 
 Future<void> showTaskDetailSheet(
@@ -18,11 +19,9 @@ Future<void> showTaskDetailSheet(
   required VoidCallback onToggleDone,
   required VoidCallback onToggleSelection,
 }) {
-  return showModalBottomSheet<void>(
+  return showModernBottomSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) => _TaskDetailSheet(
+    builder: (_) => _TaskDetailSheet(
       tache: tache,
       client: client,
       assignee: assignee,
@@ -68,12 +67,10 @@ class _TaskDetailSheet extends StatelessWidget {
     final overdue = TaskUi.isOverdue(tache);
     final priority = TaskUi.priorityColor(tache.priorite);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.circular(24),
-      ),
+    return ModernBottomSheetShell(
+      initialChildSize: 0.72,
+      minChildSize: 0.45,
+      maxChildSize: 0.92,
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.72,
@@ -83,14 +80,7 @@ class _TaskDetailSheet extends StatelessWidget {
           return Column(
             children: [
               const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AromaColors.zinc200,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              modernSheetDragHandle(),
               Expanded(
                 child: ListView(
                   controller: scrollController,

@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/entity_scope_selector.dart';
+import '../../widgets/modern_bottom_sheet.dart';
 import 'compta_detail_content.dart';
 import 'compta_ui.dart';
 
@@ -68,47 +69,11 @@ class _ComptaOperationsTabState extends State<ComptaOperationsTab>
   }
 
   void _showDetail(TransactionComptable t) {
-    showModalBottomSheet<void>(
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.9,
-        builder: (_, scroll) => SingleChildScrollView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AromaColors.zinc200,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Opération de caisse',
-                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              ...buildTransactionDetailContent(t),
-            ],
-          ),
-        ),
-      ),
+      title: 'Opération de caisse',
+      theme: ModernSheetThemes.compta,
+      children: buildTransactionDetailContent(t),
     );
   }
 

@@ -3,16 +3,15 @@ import 'package:flutter/material.dart';
 import '../../models/intervention.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
+import '../modern_bottom_sheet.dart';
 
 Future<void> showTransportDetailSheet(
   BuildContext context,
   TransportIntervention transport,
 ) {
-  return showModalBottomSheet<void>(
+  return showModernBottomSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) => _TransportDetailSheet(transport: transport),
+    builder: (_) => _TransportDetailSheet(transport: transport),
   );
 }
 
@@ -31,19 +30,10 @@ class _TransportDetailSheet extends StatelessWidget {
     final date = formatDateFr(transport.dateTransport);
     final ville = (transport.ville ?? '').trim();
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return ModernBottomSheetShell(
+      initialChildSize: transport.points.isEmpty ? 0.52 : 0.78,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: transport.points.isEmpty ? 0.52 : 0.78,
@@ -55,16 +45,7 @@ class _TransportDetailSheet extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(0, 0, 0, 16 + bottom),
             children: [
               const SizedBox(height: 10),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AromaColors.zinc200,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              modernSheetDragHandle(),
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),

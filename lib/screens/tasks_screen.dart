@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../widgets/entity_scope_selector.dart';
+import '../widgets/modern_bottom_sheet.dart';
 import '../widgets/task_form_sheet.dart';
 import '../widgets/modern_select_field.dart';
 import '../widgets/tasks/task_card_modern.dart';
@@ -248,10 +249,8 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
       );
       return;
     }
-    final ok = await showModalBottomSheet<bool>(
+    final ok = await showModernBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => TaskFormSheet(
         tache: tache,
         collaborateurs: _collaborateurs,
@@ -645,7 +644,7 @@ class _StatPill extends StatelessWidget {
   }
 }
 
-class _TabPills extends StatelessWidget {
+class _TabPills extends StatefulWidget {
   const _TabPills({
     required this.tabs,
     required this.selected,
@@ -656,79 +655,154 @@ class _TabPills extends StatelessWidget {
   final _TaskScreenTab selected;
   final ValueChanged<_TaskScreenTab> onSelected;
 
-  static String _shortLabel(_TaskScreenTab id) => switch (id) {
-        _TaskScreenTab.active => 'En cours',
-        _TaskScreenTab.starred => 'Sél.',
-        _TaskScreenTab.done => 'Termin.',
-        _TaskScreenTab.history => 'Hist.',
-        _TaskScreenTab.calendar => 'Calendrier',
-        _TaskScreenTab.recap => 'Récap',
-      };
+  @override
+  State<_TabPills> createState() => _TabPillsState();
+}
+
+class _TabPillsState extends State<_TabPills> {
+  final _keys = <_TaskScreenTab, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureKeys();
+    _scrollToSelected();
+  }
+
+  @override
+  void didUpdateWidget(_TabPills oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _ensureKeys();
+    if (oldWidget.selected != widget.selected ||
+        oldWidget.tabs.length != widget.tabs.length) {
+      _scrollToSelected();
+    }
+  }
+
+  void _ensureKeys() {
+    for (final tab in widget.tabs) {
+      _keys.putIfAbsent(tab.id, GlobalKey.new);
+    }
+  }
+
+  void _scrollToSelected() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final key = _keys[widget.selected];
+      final ctx = key?.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        alignment: 0.5,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final listTabs = tabs
-        .where(
-          (t) =>
-              t.id != _TaskScreenTab.calendar &&
-              t.id != _TaskScreenTab.recap,
-        )
-        .toList();
-    final extraTabs = tabs
-        .where(
-          (t) =>
-              t.id == _TaskScreenTab.calendar ||
-              t.id == _TaskScreenTab.recap,
-        )
-        .toList();
-
     return Material(
       color: AromaColors.canvas,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                for (var i = 0; i < listTabs.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 4),
-                  Expanded(
-                    child: _Pill(
-                      label: listTabs[i].label,
-                      shortLabel: _shortLabel(listTabs[i].id),
-                      icon: listTabs[i].icon,
-                      selected: selected == listTabs[i].id,
-                      count: listTabs[i].count,
-                      compact: true,
-                      onTap: () => onSelected(listTabs[i].id),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            if (extraTabs.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  for (var i = 0; i < extraTabs.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 6),
-                    Expanded(
-                      child: _Pill(
-                        label: extraTabs[i].label,
-                        shortLabel: _shortLabel(extraTabs[i].id),
-                        icon: extraTabs[i].icon,
-                        selected: selected == extraTabs[i].id,
-                        count: extraTabs[i].count,
-                        compact: true,
-                        onTap: () => onSelected(extraTabs[i].id),
+        padding: const EdgeInsets.only(bottom: 8),
+        child: SizedBox(
+          height: 44,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: widget.tabs.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final tab = widget.tabs[i];
+              final isSelected = widget.selected == tab.id;
+              final count = tab.count;
+              return KeyedSubtree(
+                key: _keys[tab.id],
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => widget.onSelected(tab.id),
+                    borderRadius: BorderRadius.circular(22),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: isSelected ? TaskUi.gradient : null,
+                        color: isSelected ? null : AromaColors.surface,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.transparent
+                              : const Color(0xFFE4E4E7),
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: TaskUi.accent.withValues(alpha: 0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            tab.icon,
+                            size: 16,
+                            color: isSelected
+                                ? Colors.white
+                                : AromaColors.zinc500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            tab.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AromaColors.zinc800,
+                            ),
+                          ),
+                          if (count != null && count > 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.25)
+                                    : AromaColors.zinc100,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                count > 99 ? '99+' : '$count',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AromaColors.zinc800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ],
-          ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -740,13 +814,13 @@ class _PinnedTabBarDelegate extends SliverPersistentHeaderDelegate {
 
   final Widget child;
 
+  static const double _tabBarHeight = 52;
+
   @override
   double get minExtent => _tabBarHeight;
 
   @override
   double get maxExtent => _tabBarHeight;
-
-  static const double _tabBarHeight = 108;
 
   @override
   Widget build(
@@ -774,154 +848,6 @@ class _PinnedTabBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant _PinnedTabBarDelegate oldDelegate) =>
       child != oldDelegate.child;
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-    this.shortLabel,
-    this.count,
-    this.compact = false,
-  });
-
-  final String label;
-  final String? shortLabel;
-  final IconData icon;
-  final bool selected;
-  final int? count;
-  final bool compact;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final displayLabel = compact ? (shortLabel ?? label) : label;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(compact ? 12 : 22),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 4 : 14,
-            vertical: compact ? 6 : 8,
-          ),
-          decoration: BoxDecoration(
-            gradient: selected ? TaskUi.gradient : null,
-            color: selected ? null : AromaColors.surface,
-            borderRadius: BorderRadius.circular(compact ? 12 : 22),
-            border: Border.all(
-              color: selected ? Colors.transparent : const Color(0xFFE4E4E7),
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: TaskUi.accent.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: compact
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 15,
-                      color: selected ? Colors.white : AromaColors.zinc500,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      displayLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? Colors.white : AromaColors.zinc800,
-                      ),
-                    ),
-                    if (count != null && count! > 0) ...[
-                      const SizedBox(height: 2),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? Colors.white.withValues(alpha: 0.25)
-                              : AromaColors.zinc100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '$count',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: selected
-                                ? Colors.white
-                                : AromaColors.zinc800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 16,
-                      color: selected ? Colors.white : AromaColors.zinc500,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      displayLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? Colors.white : AromaColors.zinc800,
-                      ),
-                    ),
-                    if (count != null && count! > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? Colors.white.withValues(alpha: 0.25)
-                              : AromaColors.zinc100,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '$count',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: selected
-                                ? Colors.white
-                                : AromaColors.zinc800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
 }
 
 class _CollaborateurFilter extends StatelessWidget {

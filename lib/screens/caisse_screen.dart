@@ -9,6 +9,7 @@ import '../utils/format_utils.dart';
 import '../widgets/caisse/caisse_ui.dart';
 import '../widgets/caisse_demande_form_sheet.dart';
 import '../widgets/entity_scope_selector.dart';
+import '../widgets/modern_bottom_sheet.dart';
 
 class CaisseScreen extends StatefulWidget {
   const CaisseScreen({super.key});
@@ -130,11 +131,19 @@ class _CaisseScreenState extends State<CaisseScreen>
       );
       return;
     }
-    final ok = await showModalBottomSheet<bool>(
+    final ok = await showModernBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => CaisseDemandeFormSheet(demande: demande),
+      builder: (_) => ModernBottomSheetShell(
+        useDraggable: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            modernSheetDragHandle(),
+            CaisseDemandeFormSheet(demande: demande),
+          ],
+        ),
+      ),
     );
     if (ok == true) await _reload();
   }

@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/entity_flags.dart';
 import '../utils/entity_scope.dart';
+import 'modern_bottom_sheet.dart';
 
 /// Sélecteur CM / CI / Tous les pays (aligné CRM web).
 class EntityScopeSelector extends StatefulWidget {
@@ -56,45 +57,22 @@ class _EntityScopeSelectorState extends State<EntityScopeSelector> {
     ];
     if (options.length <= 1) return;
 
-    final picked = await showModalBottomSheet<String>(
+    final picked = await showModernListSheet<String>(
       context: context,
-      showDragHandle: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: Text(
-                  'Pays actifs',
-                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              ...options.map((code) {
-                final selected = auth.currentEntityCode == code;
-                final flag = isEntityScopeAll(code)
-                    ? null
-                    : entityFlagEmoji(code);
-                return ListTile(
-                  leading: flag != null
-                      ? Text(flag, style: const TextStyle(fontSize: 22))
-                      : const Icon(Icons.public),
-                  title: Text(_label(code)),
-                  trailing: selected
-                      ? const Icon(Icons.check_rounded, color: AromaColors.primary)
-                      : null,
-                  onTap: () => Navigator.pop(ctx, code),
-                );
-              }),
-              const SizedBox(height: 8),
-            ],
-          ),
+      title: 'Pays actifs',
+      theme: ModernSheetThemes.neutral,
+      children: options.map((code) {
+        final selected = auth.currentEntityCode == code;
+        final flag = isEntityScopeAll(code) ? null : entityFlagEmoji(code);
+        return ModernSheetListTile(
+          title: _label(code),
+          leading: flag != null
+              ? Text(flag, style: const TextStyle(fontSize: 22))
+              : const Icon(Icons.public),
+          selected: selected,
+          onTap: () => Navigator.pop(context, code),
         );
-      },
+      }).toList(),
     );
 
     if (picked != null && mounted) {

@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/document_urls.dart';
 import '../utils/format_utils.dart';
+import '../widgets/modern_bottom_sheet.dart';
 
 const _statutSoumisDemande = 'Soumis en attente de validations';
 const _statutValideHierarchie = 'Validé par Hierachie';
@@ -385,356 +386,266 @@ class _MaValidationScreenState extends State<MaValidationScreen>
   }
 
   void _showHistoriqueDemandeSheet(DemandeAPayer d) {
-    showModalBottomSheet<void>(
+    final donne = d.montantDonneTotal;
+    final hasRetour = donne > 0 ||
+        (d.retour != null && d.retour!.isNotEmpty) ||
+        (d.attenteRetourCaisse ?? '').isNotEmpty;
+
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        final donne = d.montantDonneTotal;
-        final hasRetour = donne > 0 ||
-            (d.retour != null && d.retour!.isNotEmpty) ||
-            (d.attenteRetourCaisse ?? '').isNotEmpty;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            16 + MediaQuery.of(ctx).padding.bottom,
+      title: 'Historique demande',
+      theme: ModernSheetThemes.validation,
+      initialChildSize: 0.65,
+      children: [
+        _DetailRow('Statut', d.statut ?? '—'),
+        _DetailRow('Client', d.client),
+        _DetailRow('Raison', d.raisonBonCommande),
+        _DetailRow('Auteur', d.auteur ?? '—'),
+        _DetailRow('Validé par', d.valideParHierarchie ?? '—'),
+        if ((d.payePar ?? '').isNotEmpty) _DetailRow('Payé par', d.payePar!),
+        _DetailRow(
+          'Date',
+          _formatDateFr(d.createdAt) != '—'
+              ? _formatDateFr(d.createdAt)
+              : _formatDateFr(d.dateADecaisser),
+        ),
+        _DetailRow('Date à décaisser', _formatDateFr(d.dateADecaisser)),
+        _DetailRow('Montant demandé', _fmtFcfa(d.montantDemande)),
+        if (d.montantAttendu != null)
+          _DetailRow('Montant attendu', _fmtFcfa(d.montantAttendu!)),
+        if (hasRetour) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Retour caisse',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Historique demande',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+          const SizedBox(height: 8),
+          if (d.montantEspece != null && d.montantEspece! > 0)
+            _DetailRow('Espèce', _fmtFcfa(d.montantEspece!)),
+          if (d.montantMomo != null && d.montantMomo! > 0)
+            _DetailRow('MoMo', _fmtFcfa(d.montantMomo!)),
+          if (d.montantOm != null && d.montantOm! > 0)
+            _DetailRow('Orange Money', _fmtFcfa(d.montantOm!)),
+          if (d.montantCheque != null && d.montantCheque! > 0)
+            _DetailRow('Chèque', _fmtFcfa(d.montantCheque!)),
+          if (donne > 0) _DetailRow('Total donné', _fmtFcfa(donne)),
+          if (d.retour != null && d.retour!.isNotEmpty)
+            _DetailRow('Retour', d.retour!),
+          if ((d.attenteRetourCaisse ?? '').isNotEmpty)
+            _DetailRow('Attente retour', d.attenteRetourCaisse!),
+        ],
+        if (d.justificatifs.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Pièces jointes',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 16),
-                _DetailRow('Statut', d.statut ?? '—'),
-                _DetailRow('Client', d.client),
-                _DetailRow('Raison', d.raisonBonCommande),
-                _DetailRow('Auteur', d.auteur ?? '—'),
-                _DetailRow('Validé par', d.valideParHierarchie ?? '—'),
-                if ((d.payePar ?? '').isNotEmpty)
-                  _DetailRow('Payé par', d.payePar!),
-                _DetailRow(
-                  'Date',
-                  _formatDateFr(d.createdAt) != '—'
-                      ? _formatDateFr(d.createdAt)
-                      : _formatDateFr(d.dateADecaisser),
-                ),
-                _DetailRow('Date à décaisser', _formatDateFr(d.dateADecaisser)),
-                _DetailRow('Montant demandé', _fmtFcfa(d.montantDemande)),
-                if (d.montantAttendu != null)
-                  _DetailRow('Montant attendu', _fmtFcfa(d.montantAttendu!)),
-                if (hasRetour) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Retour caisse',
-                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (d.montantEspece != null && d.montantEspece! > 0)
-                    _DetailRow('Espèce', _fmtFcfa(d.montantEspece!)),
-                  if (d.montantMomo != null && d.montantMomo! > 0)
-                    _DetailRow('MoMo', _fmtFcfa(d.montantMomo!)),
-                  if (d.montantOm != null && d.montantOm! > 0)
-                    _DetailRow('Orange Money', _fmtFcfa(d.montantOm!)),
-                  if (d.montantCheque != null && d.montantCheque! > 0)
-                    _DetailRow('Chèque', _fmtFcfa(d.montantCheque!)),
-                  if (donne > 0)
-                    _DetailRow('Total donné', _fmtFcfa(donne)),
-                  if (d.retour != null && d.retour!.isNotEmpty)
-                    _DetailRow('Retour', d.retour!),
-                  if ((d.attenteRetourCaisse ?? '').isNotEmpty)
-                    _DetailRow('Attente retour', d.attenteRetourCaisse!),
-                ],
-                if (d.justificatifs.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Pièces jointes',
-                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...d.justificatifs.map(
-                    (j) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(j.name),
-                      trailing: const Icon(Icons.open_in_new_rounded),
-                      onTap: () => _openDocumentPath(ctx, j.path),
-                    ),
-                  ),
-                ],
-              ],
+          ),
+          const SizedBox(height: 8),
+          ...d.justificatifs.map(
+            (j) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(j.name),
+              trailing: const Icon(Icons.open_in_new_rounded),
+              onTap: () => _openDocumentPath(context, j.path),
             ),
           ),
-        );
-      },
+        ],
+      ],
     );
   }
 
   void _showDemandeSheet(DemandeAPayer d) {
-    showModalBottomSheet<void>(
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            16 + MediaQuery.of(ctx).padding.bottom,
+      title: 'Demande à payer',
+      theme: ModernSheetThemes.validation,
+      initialChildSize: 0.7,
+      children: [
+        _DetailRow('Client', d.client),
+        _DetailRow('Raison', d.raisonBonCommande),
+        _DetailRow('Auteur', d.auteur ?? '—'),
+        _DetailRow('Date à décaisser', _formatDateFr(d.dateADecaisser)),
+        _DetailRow('Montant demandé', _fmtFcfa(d.montantDemande)),
+        if (d.montantAttendu != null)
+          _DetailRow('Montant attendu', _fmtFcfa(d.montantAttendu!)),
+        if ((d.raisonBonTransport ?? '').isNotEmpty)
+          _DetailRow('Transport', d.raisonBonTransport!),
+        if (d.justificatifs.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Pièces jointes',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Demande à payer',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                _DetailRow('Client', d.client),
-                _DetailRow('Raison', d.raisonBonCommande),
-                _DetailRow('Auteur', d.auteur ?? '—'),
-                _DetailRow('Date à décaisser', _formatDateFr(d.dateADecaisser)),
-                _DetailRow('Montant demandé', _fmtFcfa(d.montantDemande)),
-                if (d.montantAttendu != null)
-                  _DetailRow('Montant attendu', _fmtFcfa(d.montantAttendu!)),
-                if ((d.raisonBonTransport ?? '').isNotEmpty)
-                  _DetailRow('Transport', d.raisonBonTransport!),
-                if (d.justificatifs.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Pièces jointes',
-                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...d.justificatifs.map(
-                    (j) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(j.name),
-                      trailing: const Icon(Icons.open_in_new_rounded),
-                      onTap: () => _openDocumentPath(ctx, j.path),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _patchDemandeStatut(d, _statutValideHierarchie);
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF059669),
-                        ),
-                        child: const Text('Valider (hiérarchie)'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _patchDemandeStatut(d, _statutNonValide);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red.shade800,
-                          side: BorderSide(color: Colors.red.shade200),
-                        ),
-                        child: const Text('Refuser'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Le retour caisse détaillé (montants, justificatifs supplémentaires) reste aligné sur le module web.',
-                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                        color: AromaColors.zinc500,
-                      ),
-                ),
-              ],
+          const SizedBox(height: 8),
+          ...d.justificatifs.map(
+            (j) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(j.name),
+              trailing: const Icon(Icons.open_in_new_rounded),
+              onTap: () => _openDocumentPath(context, j.path),
             ),
           ),
-        );
-      },
+        ],
+        const SizedBox(height: 8),
+        Text(
+          'Le retour caisse détaillé (montants, justificatifs supplémentaires) reste aligné sur le module web.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AromaColors.zinc500,
+              ),
+        ),
+      ],
+      footer: Row(
+        children: [
+          Expanded(
+            child: FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _patchDemandeStatut(d, _statutValideHierarchie);
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+              ),
+              child: const Text('Valider (hiérarchie)'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _patchDemandeStatut(d, _statutNonValide);
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red.shade800,
+                side: BorderSide(color: Colors.red.shade200),
+              ),
+              child: const Text('Refuser'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   void _showBonFSheet(BonCommandeFournisseurLite b) {
-    showModalBottomSheet<void>(
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            16 + MediaQuery.of(ctx).padding.bottom,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Bon fournisseur',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                _DetailRow('Référence', b.reference),
-                _DetailRow('Fournisseur', b.fournisseurNom),
-                _DetailRow('Statut', _labelBonFournisseurStatut(b.statut)),
-                _DetailRow('Total (cmd + transport)', _fmtFcfa(b.totalCommandeTransport)),
-                if (b.lignes.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text('Lignes', style: Theme.of(ctx).textTheme.titleSmall),
-                  ...b.lignes.map(
-                    (l) => ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l.designation ?? l.ref ?? '—'),
-                      subtitle: Text('Qté ${l.quantite}'),
-                      trailing: l.montant != null ? Text(_fmtFcfa(l.montant!)) : null,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _validerBonF(b);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                  ),
-                  child: Text(
-                    b.statut == 'en_attente_confirmation_interne'
-                        ? 'Valider retour fournisseur'
-                        : 'Valider (hiérarchie)',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _refuserBonF(b);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red.shade800,
-                    side: BorderSide(color: Colors.red.shade200),
-                  ),
-                  child: const Text('Refuser (hiérarchie)'),
-                ),
-              ],
+      title: 'Bon fournisseur',
+      subtitle: b.reference,
+      theme: ModernSheetThemes.validation,
+      initialChildSize: 0.7,
+      children: [
+        _DetailRow('Fournisseur', b.fournisseurNom),
+        _DetailRow('Statut', _labelBonFournisseurStatut(b.statut)),
+        _DetailRow('Total (cmd + transport)', _fmtFcfa(b.totalCommandeTransport)),
+        if (b.lignes.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Lignes', style: Theme.of(context).textTheme.titleSmall),
+          ...b.lignes.map(
+            (l) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.designation ?? l.ref ?? '—'),
+              subtitle: Text('Qté ${l.quantite}'),
+              trailing: l.montant != null ? Text(_fmtFcfa(l.montant!)) : null,
             ),
           ),
-        );
-      },
+        ],
+      ],
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _validerBonF(b);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+            ),
+            child: Text(
+              b.statut == 'en_attente_confirmation_interne'
+                  ? 'Valider retour fournisseur'
+                  : 'Valider (hiérarchie)',
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _refuserBonF(b);
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red.shade800,
+              side: BorderSide(color: Colors.red.shade200),
+            ),
+            child: const Text('Refuser (hiérarchie)'),
+          ),
+        ],
+      ),
     );
   }
 
   void _showBonISheet(BonCommandeInterneLite b) {
-    showModalBottomSheet<void>(
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            16 + MediaQuery.of(ctx).padding.bottom,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Bon interne',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                _DetailRow('Référence', b.reference),
-                _DetailRow('Demande', b.demande),
-                _DetailRow('Description', b.description),
-                _DetailRow('Pour qui', b.pourQuiLabel),
-                _DetailRow('Collaborateur', b.collaborateurNom ?? '—'),
-                _DetailRow('Statut', _labelBonInterneStatut(b.statut)),
-                if (b.lignes.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text('Lignes', style: Theme.of(ctx).textTheme.titleSmall),
-                  ...b.lignes.map(
-                    (l) => ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l.designation ?? l.ref ?? '—'),
-                      subtitle: Text('Qté ${l.quantite}'),
-                      trailing: l.montant != null ? Text(_fmtFcfa(l.montant!)) : null,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _validerBonI(b);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                  ),
-                  child: const Text('Valider'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _refuserBonI(b);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red.shade800,
-                    side: BorderSide(color: Colors.red.shade200),
-                  ),
-                  child: const Text('Refuser'),
-                ),
-              ],
+      title: 'Bon interne',
+      subtitle: b.reference,
+      theme: ModernSheetThemes.validation,
+      initialChildSize: 0.7,
+      children: [
+        _DetailRow('Demande', b.demande),
+        _DetailRow('Description', b.description),
+        _DetailRow('Pour qui', b.pourQuiLabel),
+        _DetailRow('Collaborateur', b.collaborateurNom ?? '—'),
+        _DetailRow('Statut', _labelBonInterneStatut(b.statut)),
+        if (b.lignes.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Lignes', style: Theme.of(context).textTheme.titleSmall),
+          ...b.lignes.map(
+            (l) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.designation ?? l.ref ?? '—'),
+              subtitle: Text('Qté ${l.quantite}'),
+              trailing: l.montant != null ? Text(_fmtFcfa(l.montant!)) : null,
             ),
           ),
-        );
-      },
+        ],
+      ],
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _validerBonI(b);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+            ),
+            child: const Text('Valider'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _refuserBonI(b);
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red.shade800,
+              side: BorderSide(color: Colors.red.shade200),
+            ),
+            child: const Text('Refuser'),
+          ),
+        ],
+      ),
     );
   }
 

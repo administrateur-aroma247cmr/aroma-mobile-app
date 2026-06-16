@@ -4,6 +4,7 @@ import '../../models/intervention.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../utils/intervention_status_colors.dart';
+import '../modern_bottom_sheet.dart';
 
 /// Palette module Interventions — bleu terrain (aligné CRM web).
 abstract final class InterventionsUi {
@@ -565,48 +566,14 @@ void showInterventionsDetailSheet({
   required BuildContext context,
   required String title,
   required List<Widget> children,
+  String? subtitle,
 }) {
-  showModalBottomSheet<void>(
+  showModernDetailSheet(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: AromaColors.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.55,
-      minChildSize: 0.35,
-      maxChildSize: 0.9,
-      builder: (_, scroll) => SingleChildScrollView(
-        controller: scroll,
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AromaColors.zinc200,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    ),
+    title: title,
+    subtitle: subtitle,
+    theme: ModernSheetThemes.interventions,
+    children: children,
   );
 }
 

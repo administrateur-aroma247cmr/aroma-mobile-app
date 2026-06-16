@@ -9,6 +9,7 @@ import '../models/galerie_fichier.dart';
 import '../providers/auth_provider.dart';
 import '../services/aroma_api.dart';
 import '../theme/aroma_theme.dart';
+import '../widgets/modern_bottom_sheet.dart';
 
 /// Aligné sur le CRM web (rôle privilégié ou auteur de l’upload).
 bool _galerieFileCanDelete(AuthProvider auth, GalerieFichier f) {
@@ -558,99 +559,98 @@ class GalerieScreenState extends State<GalerieScreen> {
         ? rootSentinel
         : _normalizeFolder(_currentFolder);
     List<String> localFolders = await _collectKnownFolders();
-    final destination = await showModalBottomSheet<String>(
+    final destination = await showModernBottomSheet<String>(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ou inserer les fichiers ?',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _FolderChoiceTile(
-                              label: 'Racine (/)',
-                              selected: selected == rootSentinel,
-                              onTap: () =>
-                                  setSheetState(() => selected = rootSentinel),
-                            ),
-                            ...localFolders.map(
-                              (f) => _FolderChoiceTile(
-                                label: _folderDisplayName(f),
-                                selected: selected == f,
-                                onTap: () => setSheetState(() => selected = f),
-                              ),
-                            ),
-                            if (localFolders.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 6),
-                                child: Text(
-                                  'Aucun dossier detecte pour le moment.\n'
-                                  'Vous pouvez en creer un.',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                          ],
+        return ModernBottomSheetShell(
+          initialChildSize: 0.55,
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.55,
+            minChildSize: 0.35,
+            maxChildSize: 0.85,
+            builder: (_, scrollController) {
+              return StatefulBuilder(
+                builder: (context, setSheetState) {
+                  final bottom = MediaQuery.paddingOf(context).bottom;
+                  return ListView(
+                    controller: scrollController,
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + bottom),
+                    children: [
+                      const SizedBox(height: 10),
+                      modernSheetDragHandle(),
+                      const SizedBox(height: 16),
+                      ModernSheetHeader(
+                        title: 'Où insérer les fichiers ?',
+                        theme: ModernSheetThemes.galerie,
+                      ),
+                      const SizedBox(height: 16),
+                      _FolderChoiceTile(
+                        label: 'Racine (/)',
+                        selected: selected == rootSentinel,
+                        onTap: () =>
+                            setSheetState(() => selected = rootSentinel),
+                      ),
+                      ...localFolders.map(
+                        (f) => _FolderChoiceTile(
+                          label: _folderDisplayName(f),
+                          selected: selected == f,
+                          onTap: () => setSheetState(() => selected = f),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final selectedFolder = selected == rootSentinel
-                                  ? null
-                                  : selected;
-                              final created = await _createFolderDialog(
-                                parentFolder: selectedFolder,
-                              );
-                              if (created == null) return;
-                              localFolders = await _collectKnownFolders();
-                              if (!localFolders.contains(created)) {
-                                localFolders.add(created);
-                                localFolders.sort(
-                                  (a, b) => a.toLowerCase().compareTo(
-                                    b.toLowerCase(),
-                                  ),
+                      if (localFolders.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            'Aucun dossier detecte pour le moment.\n'
+                            'Vous pouvez en creer un.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final selectedFolder = selected == rootSentinel
+                                    ? null
+                                    : selected;
+                                final created = await _createFolderDialog(
+                                  parentFolder: selectedFolder,
                                 );
-                              }
-                              setSheetState(() => selected = created);
-                            },
-                            icon: const Icon(Icons.create_new_folder_outlined),
-                            label: const Text('Nouveau dossier'),
+                                if (created == null) return;
+                                localFolders = await _collectKnownFolders();
+                                if (!localFolders.contains(created)) {
+                                  localFolders.add(created);
+                                  localFolders.sort(
+                                    (a, b) => a.toLowerCase().compareTo(
+                                      b.toLowerCase(),
+                                    ),
+                                  );
+                                }
+                                setSheetState(() => selected = created);
+                              },
+                              icon: const Icon(Icons.create_new_folder_outlined),
+                              label: const Text('Nouveau dossier'),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => Navigator.pop(ctx, selected),
-                            icon: const Icon(Icons.check),
-                            label: const Text('Continuer'),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () => Navigator.pop(ctx, selected),
+                              icon: const Icon(Icons.check),
+                              label: const Text('Continuer'),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         );
       },
     );
@@ -733,78 +733,49 @@ class GalerieScreenState extends State<GalerieScreen> {
   void _showAddSheet() {
     final current = _normalizeFolder(_currentFolder);
     final uploadTargetLabel = current.isEmpty ? 'Racine' : current;
-    showModalBottomSheet<void>(
+    showModernActionSheet(
       context: context,
-      showDragHandle: true,
-      backgroundColor: AromaColors.surface,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ajouter des fichiers',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Icon(Icons.drive_folder_upload_outlined, size: 18),
-                    Text(
-                      'Destination: $uploadTargetLabel',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _UploadActionTile(
-                  icon: Icons.photo_camera_outlined,
-                  title: 'Prendre une photo',
-                  subtitle: 'Ouvre la camera',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pickAndUploadPhoto(ImageSource.camera);
-                  },
-                ),
-                _UploadActionTile(
-                  icon: Icons.video_library_outlined,
-                  title: 'Video depuis l’appareil',
-                  subtitle: 'Selectionner une video',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pickAndUploadVideo(ImageSource.gallery);
-                  },
-                ),
-                _UploadActionTile(
-                  icon: Icons.collections_outlined,
-                  title: 'Photos / medias (plusieurs)',
-                  subtitle: 'Selection multiple',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pickMultipleMedia();
-                  },
-                ),
-                _UploadActionTile(
-                  icon: Icons.attach_file,
-                  title: 'Fichiers',
-                  subtitle: 'PDF, images, documents',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pickFiles();
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      title: 'Ajouter des fichiers',
+      subtitle: 'Destination: $uploadTargetLabel',
+      theme: ModernSheetThemes.galerie,
+      actions: [
+        _UploadActionTile(
+          icon: Icons.photo_camera_outlined,
+          title: 'Prendre une photo',
+          subtitle: 'Ouvre la camera',
+          onTap: () {
+            Navigator.pop(context);
+            _pickAndUploadPhoto(ImageSource.camera);
+          },
+        ),
+        _UploadActionTile(
+          icon: Icons.video_library_outlined,
+          title: 'Video depuis l’appareil',
+          subtitle: 'Selectionner une video',
+          onTap: () {
+            Navigator.pop(context);
+            _pickAndUploadVideo(ImageSource.gallery);
+          },
+        ),
+        _UploadActionTile(
+          icon: Icons.collections_outlined,
+          title: 'Photos / medias (plusieurs)',
+          subtitle: 'Selection multiple',
+          onTap: () {
+            Navigator.pop(context);
+            _pickMultipleMedia();
+          },
+        ),
+        _UploadActionTile(
+          icon: Icons.attach_file,
+          title: 'Fichiers',
+          subtitle: 'PDF, images, documents',
+          onTap: () {
+            Navigator.pop(context);
+            _pickFiles();
+          },
+        ),
+      ],
     );
   }
 

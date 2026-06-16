@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/demande_rh.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/entity_scope_selector.dart';
+import '../../widgets/modern_bottom_sheet.dart';
 import 'rh_create_demande_sheet.dart';
 import 'rh_demande_card.dart';
 import 'rh_ui.dart';
@@ -77,11 +78,19 @@ class _RhDemandesTabState extends State<RhDemandesTab>
     final collabId = auth.collaborateurId;
     if (collabId == null) return;
 
-    final result = await showModalBottomSheet<bool>(
+    final result = await showModernBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => RhCreateDemandeSheet(collaborateurId: collabId),
+      builder: (_) => ModernBottomSheetShell(
+        useDraggable: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            modernSheetDragHandle(),
+            RhCreateDemandeSheet(collaborateurId: collabId),
+          ],
+        ),
+      ),
     );
     if (result == true) await _reload();
   }

@@ -6,6 +6,7 @@ import '../models/tache.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import 'modern_select_field.dart';
+import 'modern_bottom_sheet.dart';
 import 'tasks/task_ui.dart';
 
 class TaskFormSheet extends StatefulWidget {
@@ -132,12 +133,11 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     final isEdit = widget.tache != null;
 
-    return Container(
+    return ModernBottomSheetShell(
+      initialChildSize: 0.88,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
       margin: EdgeInsets.only(top: MediaQuery.sizeOf(context).height * 0.06),
-      decoration: const BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.88,
@@ -148,16 +148,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
             controller: scrollController,
             padding: EdgeInsets.fromLTRB(24, 12, 24, 24 + bottom),
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AromaColors.zinc200,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              Center(child: modernSheetDragHandle()),
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),

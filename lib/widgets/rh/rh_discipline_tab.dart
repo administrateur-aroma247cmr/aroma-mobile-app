@@ -10,6 +10,7 @@ import '../../theme/aroma_theme.dart';
 import '../../utils/document_urls.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/entity_scope_selector.dart';
+import '../../widgets/modern_bottom_sheet.dart';
 import 'rh_discipline_card.dart';
 import 'rh_ui.dart';
 
@@ -87,15 +88,16 @@ class _RhDisciplineTabState extends State<RhDisciplineTab>
     final canRespond = !auth.isPrivilegedStaff &&
         auth.collaborateurId == d.idCollaborateur;
 
-    showModalBottomSheet<void>(
+    showModernBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _DisciplineDetailSheet(
-        discipline: d,
-        collaborateurName: _collabName(d.idCollaborateur),
-        canRespond: canRespond,
-        onUpdated: _reload,
+      builder: (_) => ModernBottomSheetShell(
+        useDraggable: false,
+        child: _DisciplineDetailSheet(
+          discipline: d,
+          collaborateurName: _collabName(d.idCollaborateur),
+          canRespond: canRespond,
+          onUpdated: _reload,
+        ),
       ),
     );
   }
@@ -232,27 +234,12 @@ class _DisciplineDetailSheetState extends State<_DisciplineDetailSheet> {
     final d = widget.discipline;
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
-      ),
-      decoration: const BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AromaColors.zinc200,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Flexible(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 10),
+        modernSheetDragHandle(),
+        Flexible(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
               child: Column(
@@ -402,8 +389,7 @@ class _DisciplineDetailSheetState extends State<_DisciplineDetailSheet> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 }
 

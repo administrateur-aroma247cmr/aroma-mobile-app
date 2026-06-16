@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../widgets/compta/compta_ui.dart';
+import '../widgets/modern_bottom_sheet.dart';
 
 class FicheRecouvrementScreen extends StatefulWidget {
   const FicheRecouvrementScreen({super.key, required this.facture});
@@ -58,166 +59,72 @@ class _FicheRecouvrementScreenState extends State<FicheRecouvrementScreen> {
   }
 
   void _showExchangeDetail(_RelanceEchange e) {
-    showModalBottomSheet<void>(
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.9,
-        builder: (_, scroll) => SingleChildScrollView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AromaColors.zinc200,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _MoyenBadge(moyen: e.moyen),
-                  const Spacer(),
-                  Text(
-                    e.dateLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AromaColors.zinc500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Échange ${e.moyen}',
-                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              _DetailLine('Agent', e.agent),
-              _DetailLine('Contact', e.contact),
-              if (e.ressenti != null && e.ressenti!.isNotEmpty)
-                _DetailLine('Ressenti', e.ressenti!),
-              const SizedBox(height: 8),
-              const Text(
-                'Contenu',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AromaColors.zinc500,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AromaColors.zinc100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AromaColors.zinc200),
-                ),
-                child: Text(
-                  e.contenu,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.45,
-                    color: AromaColors.zinc800,
-                  ),
-                ),
-              ),
-            ],
+      title: 'Échange ${e.moyen}',
+      subtitle: e.dateLabel,
+      theme: ModernSheetThemes.compta,
+      titleTrailing: _MoyenBadge(moyen: e.moyen),
+      children: [
+        _DetailLine('Agent', e.agent),
+        _DetailLine('Contact', e.contact),
+        if (e.ressenti != null && e.ressenti!.isNotEmpty)
+          _DetailLine('Ressenti', e.ressenti!),
+        const SizedBox(height: 8),
+        const Text(
+          'Contenu',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AromaColors.zinc500,
           ),
         ),
-      ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AromaColors.zinc100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AromaColors.zinc200),
+          ),
+          child: Text(
+            e.contenu,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AromaColors.zinc800,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   void _showMessageDetail(String title, String content, IconData icon, Color color) {
-    showModalBottomSheet<void>(
+    showModernDetailSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AromaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.9,
-        builder: (_, scroll) => SingleChildScrollView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AromaColors.zinc200,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(icon, color: color, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    title,
-                    style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AromaColors.zinc100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AromaColors.zinc200),
-                ),
-                child: Text(
-                  content,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.45,
-                    color: AromaColors.zinc800,
-                  ),
-                ),
-              ),
-            ],
+      title: title,
+      theme: ModernSheetThemes.compta,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AromaColors.zinc200),
+          ),
+          child: Text(
+            content,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AromaColors.zinc800,
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 

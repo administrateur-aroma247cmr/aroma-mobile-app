@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/demande_rh.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
+import '../modern_bottom_sheet.dart';
 import 'rh_ui.dart';
 
 class RhDemandeCard extends StatelessWidget {
@@ -182,50 +183,35 @@ class RhDemandeCard extends StatelessWidget {
   }
 
   void _showActions(BuildContext context) {
-    showModalBottomSheet<void>(
+    showModernActionSheet(
       context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                labelTypeDemande(demande.type),
-                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  onApprove();
-                },
-                icon: const Icon(Icons.check_rounded),
-                label: const Text('Approuver'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                ),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  onReject();
-                },
-                icon: const Icon(Icons.close_rounded),
-                label: const Text('Rejeter'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFB91C1C),
-                ),
-              ),
-            ],
+      title: labelTypeDemande(demande.type),
+      theme: ModernSheetThemes.rh,
+      actions: [
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.pop(context);
+            onApprove();
+          },
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('Approuver'),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF059669),
           ),
         ),
-      ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.pop(context);
+            onReject();
+          },
+          icon: const Icon(Icons.close_rounded),
+          label: const Text('Rejeter'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFB91C1C),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/aroma_theme.dart';
+import 'modern_bottom_sheet.dart';
 
 const _clearSentinel = Object();
 
@@ -52,11 +53,9 @@ class ModernSelectField<T> extends StatelessWidget {
   }
 
   Future<void> _open(BuildContext context) async {
-    final picked = await showModalBottomSheet<Object?>(
+    final picked = await showModernBottomSheet<Object?>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ModernSelectSheet<T>(
+      builder: (_) => _ModernSelectSheet<T>(
         title: label,
         options: options,
         selected: value,
@@ -164,11 +163,9 @@ class ModernMultiSelectField<T> extends StatelessWidget {
   final IconData? leadingIcon;
 
   Future<void> _open(BuildContext context) async {
-    final picked = await showModalBottomSheet<Set<T>?>(
+    final picked = await showModernBottomSheet<Set<T>?>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ModernMultiSelectSheet<T>(
+      builder: (_) => _ModernMultiSelectSheet<T>(
         title: label,
         options: options,
         selected: Set<T>.from(values),
@@ -307,12 +304,8 @@ class _ModernSelectSheetState<T> extends State<_ModernSelectSheet<T>> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
-    return Container(
-      margin: const EdgeInsets.only(top: 48),
-      decoration: const BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return ModernBottomSheetShell(
+      margin: const EdgeInsets.fromLTRB(12, 48, 12, 12),
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.65,
@@ -322,14 +315,7 @@ class _ModernSelectSheetState<T> extends State<_ModernSelectSheet<T>> {
           return Column(
             children: [
               const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AromaColors.zinc200,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              modernSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
                 child: Row(
@@ -437,12 +423,8 @@ class _ModernMultiSelectSheetState<T> extends State<_ModernMultiSelectSheet<T>> 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
-    return Container(
-      margin: const EdgeInsets.only(top: 48),
-      decoration: const BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return ModernBottomSheetShell(
+      margin: const EdgeInsets.fromLTRB(12, 48, 12, 12),
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.7,
@@ -452,14 +434,7 @@ class _ModernMultiSelectSheetState<T> extends State<_ModernMultiSelectSheet<T>> 
           return Column(
             children: [
               const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AromaColors.zinc200,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              modernSheetDragHandle(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Row(
