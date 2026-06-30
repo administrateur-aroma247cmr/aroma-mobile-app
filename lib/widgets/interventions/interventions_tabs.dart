@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../models/intervention.dart';
 import '../../providers/auth_provider.dart';
 import '../../screens/fiche_adc_screen.dart';
+import '../../screens/intervention_rapport_screen.dart';
 import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
+import '../../utils/technician_view.dart';
 import '../../widgets/entity_scope_selector.dart';
 import 'interventions_ui.dart';
 import 'transport_detail_sheet.dart';
@@ -14,7 +16,13 @@ import 'transport_detail_sheet.dart';
 // ─── Mes interventions ─────────────────────────────────────────────────────────
 
 class InterventionsListTab extends StatefulWidget {
-  const InterventionsListTab({super.key});
+  const InterventionsListTab({
+    super.key,
+    this.technicianFieldView = false,
+  });
+
+  /// Vue terrain : uniquement les interventions assignées au technicien connecté.
+  final bool technicianFieldView;
 
   @override
   State<InterventionsListTab> createState() => _InterventionsListTabState();
@@ -74,15 +82,35 @@ class _InterventionsListTabState extends State<InterventionsListTab>
       _error = null;
     });
     try {
-      final api = context.read<AuthProvider>().api;
-      final result = await api.listInterventions(
-        dateFrom: _monthDateMin,
-        dateTo: _monthDateMax,
-        limit: 500,
-      );
+      final auth = context.read<AuthProvider>();
+      final api = auth.api;
+
+      final InterventionsListResult result;
+      if (widget.technicianFieldView) {
+        final range = technicianInterventionDateRange();
+        result = await api.listInterventions(
+          dateFrom: range.from,
+          dateTo: range.to,
+          limit: 500,
+        );
+      } else {
+        result = await api.listInterventions(
+          dateFrom: _monthDateMin,
+          dateTo: _monthDateMax,
+          limit: 500,
+        );
+      }
+
+      var rows = result.items;
+      if (widget.technicianFieldView) {
+        final ctx = await buildTechnicianMatchContext(auth);
+        rows = rows
+            .where((i) => isInterventionAssignedToTechnician(i, ctx))
+            .toList();
+      }
       if (!mounted) return;
       setState(() {
-        _rows = result.items;
+        _rows = rows;
         _loading = false;
       });
     } catch (e) {
@@ -105,7 +133,18 @@ class _InterventionsListTabState extends State<InterventionsListTab>
     }).toList();
   }
 
-  void _showDetail(Intervention i) {
+  void _openIntervention(Intervention i) {
+    if (widget.technicianFieldView) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => InterventionRapportScreen(
+            interventionId: i.id,
+            interventionSummary: i,
+          ),
+        ),
+      );
+      return;
+    }
     showInterventionsDetailSheet(
       context: context,
       title: 'Intervention',
@@ -127,30 +166,34 @@ class _InterventionsListTabState extends State<InterventionsListTab>
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const InterventionsSectionHeader(
+          InterventionsSectionHeader(
             title: 'Mes interventions',
-            subtitle: 'Interventions terrain — aligné CRM web',
+            subtitle: widget.technicianFieldView
+                ? 'Touchez une intervention pour créer le rapport photos'
+                : 'Interventions terrain — aligné CRM web',
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _shiftMonth(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
-              Expanded(
-                child: Text(
-                  monthLabelFr(_monthKey),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+          if (!widget.technicianFieldView) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => _shiftMonth(-1),
+                  icon: const Icon(Icons.chevron_left_rounded),
                 ),
-              ),
-              IconButton(
-                onPressed: () => _shiftMonth(1),
-                icon: const Icon(Icons.chevron_right_rounded),
-              ),
-            ],
-          ),
+                Expanded(
+                  child: Text(
+                    monthLabelFr(_monthKey),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _shiftMonth(1),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           TextField(
             decoration: const InputDecoration(
@@ -161,9 +204,11 @@ class _InterventionsListTabState extends State<InterventionsListTab>
           ),
           const SizedBox(height: 16),
           if (rows.isEmpty)
-            const InterventionsEmptyState(
+            InterventionsEmptyState(
               title: 'Aucune intervention',
-              subtitle: 'Aucune intervention pour cette période.',
+              subtitle: widget.technicianFieldView
+                  ? 'Aucune intervention ne vous est assignée.'
+                  : 'Aucune intervention pour cette période.',
             )
           else
             ...rows.map(
@@ -174,7 +219,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                   subtitle:
                       '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
                   trailingWidget: InterventionEtatBadge(etat: i.etat),
-                  onTap: () => _showDetail(i),
+                  onTap: () => _openIntervention(i),
                 ),
               ),
             ),

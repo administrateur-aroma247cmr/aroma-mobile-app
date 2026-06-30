@@ -10,6 +10,9 @@ class Intervention {
     this.ville,
     this.clientNom,
     this.technicienNom,
+    this.idTechnicien,
+    this.idClients,
+    this.idAgence,
     this.dateIntervention,
     this.etat,
     this.auteur,
@@ -25,6 +28,9 @@ class Intervention {
   final String? ville;
   final String? clientNom;
   final String? technicienNom;
+  final String? idTechnicien;
+  final String? idClients;
+  final String? idAgence;
   final String? dateIntervention;
   final String? etat;
   final String? auteur;
@@ -58,6 +64,9 @@ class Intervention {
       ville: _str(m['ville']),
       clientNom: _str(m['client_nom']),
       technicienNom: _str(m['technicien_nom']),
+      idTechnicien: m['id_technicien']?.toString(),
+      idClients: m['id_clients']?.toString(),
+      idAgence: m['id_agence']?.toString(),
       dateIntervention: _str(m['date_intervention']),
       etat: _str(m['etat']) ?? _str(m['etat_app']),
       auteur: _str(m['auteur']),

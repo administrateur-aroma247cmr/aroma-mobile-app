@@ -16,7 +16,9 @@ import '../models/discipline_rh.dart';
 import '../models/recouvrement.dart';
 import '../models/galerie_fichier.dart';
 import '../models/galerie_folder.dart';
+import '../models/equipement_client.dart';
 import '../models/intervention.dart';
+import '../models/technicien.dart';
 import '../models/rh_dashboard.dart';
 import '../models/tache.dart';
 
@@ -1330,6 +1332,46 @@ class AromaApi {
         return InterventionsListResult(items: items, total: items.length);
       }
       throw ApiException('Réponse interventions invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Technicien>> listTechniciens() async {
+    final res = await _client.get(
+      _uri('/api/techniciens'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse techniciens invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Technicien.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<EquipementClient>> listEquipements({String? clientId}) async {
+    final q = <String, String>{};
+    if (clientId != null && clientId.isNotEmpty) {
+      q['client_id'] = clientId;
+    }
+    final res = await _client.get(
+      _uri('/api/equipements', q.isEmpty ? null : q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse équipements invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => EquipementClient.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     }
     throw _errorFromResponse(res);
   }

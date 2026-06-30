@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
+import '../utils/technician_view.dart';
 import '../widgets/entity_scope_selector.dart';
 import '../widgets/interventions/interventions_tabs.dart';
 import '../widgets/interventions/interventions_ui.dart';
@@ -60,9 +61,11 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final technicianView = isTechnicianFieldView(auth);
     final moisLabel = monthLabelFr(currentMonthIso());
+    final tabs = technicianView ? _tabs.take(1).toList() : _tabs;
     final selectedTab =
-        _tabs.any((t) => t.id == _currentTab) ? _currentTab : _tabs.first.id;
+        tabs.any((t) => t.id == _currentTab) ? _currentTab : tabs.first.id;
 
     return Scaffold(
       backgroundColor: AromaColors.canvas,
@@ -71,14 +74,19 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!widget.embedded)
-              _InterventionsHeader(subtitle: 'Interventions · $moisLabel'),
+              _InterventionsHeader(
+                subtitle: technicianView
+                    ? 'Vos interventions terrain'
+                    : 'Interventions · $moisLabel',
+              ),
             if (!widget.embedded) const SizedBox(height: 8),
-            InterventionsTabPills(
-              tabs: _tabs,
-              selected: selectedTab,
-              onSelected: _selectTab,
-            ),
-            const SizedBox(height: 8),
+            if (!technicianView)
+              InterventionsTabPills(
+                tabs: tabs,
+                selected: selectedTab,
+                onSelected: _selectTab,
+              ),
+            if (!technicianView) const SizedBox(height: 8),
             Expanded(
               child: switch (selectedTab) {
                 'calendrier' => InterventionsCalendarTab(
@@ -97,7 +105,10 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                     key: ValueKey('rapports-${auth.currentEntityCode}'),
                   ),
                 _ => InterventionsListTab(
-                    key: ValueKey('interventions-${auth.currentEntityCode}'),
+                    key: ValueKey(
+                      'interventions-${auth.currentEntityCode}-$technicianView',
+                    ),
+                    technicianFieldView: technicianView,
                   ),
               },
             ),

@@ -87,6 +87,35 @@ class AuthProvider extends ChangeNotifier {
     return s.isEmpty ? null : s;
   }
 
+  String? _technicienId;
+
+  /// ID technicien CRM lié au collaborateur connecté (cache).
+  String? get technicienId => _technicienId;
+
+  Future<String?> ensureTechnicienId() async {
+    if (_technicienId != null) return _technicienId;
+    final collabId = collaborateurId;
+    if (collabId == null) return null;
+    try {
+      final techs = await _api.listTechniciens();
+      for (final t in techs) {
+        if (t.idCollaborateur == collabId) {
+          _technicienId = t.id;
+          return _technicienId;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void cacheTechnicienId(String id) {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    _technicienId = trimmed;
+  }
+
+  void _resetTechnicienCache() => _technicienId = null;
+
   Map<String, String> get droits {
     final raw = _me?['droits'];
     if (raw is! Map) return const {};
@@ -223,6 +252,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> initialize() async {
     _token = await _tokenStore.read();
     _wireApi();
+    _resetTechnicienCache();
     if (isAuthenticated) {
       try {
         _me = await _api.me();
@@ -250,6 +280,7 @@ class AuthProvider extends ChangeNotifier {
       if (_token != null) {
         await _tokenStore.write(_token!);
         _wireApi();
+        _resetTechnicienCache();
         try {
           _me = await _api.me();
           await _syncEntityScope();
@@ -272,6 +303,7 @@ class AuthProvider extends ChangeNotifier {
     _token = null;
     _me = null;
     _currentEntityCode = null;
+    _resetTechnicienCache();
     _mustChangePassword = false;
     await _tokenStore.clear();
     await _entityStore.clear();
