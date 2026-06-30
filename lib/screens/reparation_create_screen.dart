@@ -3,16 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/client_lite.dart';
-import '../../models/equipement_client.dart';
-import '../../models/prospect_lite.dart';
-import '../../models/stock_lite.dart';
-import '../../models/technicien.dart';
-import '../../providers/auth_provider.dart';
-import '../../theme/aroma_theme.dart';
-import '../modern_bottom_sheet.dart';
-import '../modern_select_field.dart';
-import 'interventions_ui.dart';
+import '../models/client_lite.dart';
+import '../models/equipement_client.dart';
+import '../models/prospect_lite.dart';
+import '../models/stock_lite.dart';
+import '../models/technicien.dart';
+import '../providers/auth_provider.dart';
+import '../theme/aroma_theme.dart';
+import '../widgets/modern_select_field.dart';
+import '../widgets/interventions/interventions_ui.dart';
 
 const _panneOptions = <({String value, String label, IconData icon})>[
   (value: 'bruit', label: 'Ça fait du bruit', icon: Icons.volume_up_outlined),
@@ -45,23 +44,14 @@ const _panneOptions = <({String value, String label, IconData icon})>[
   (value: 'autre', label: 'Autre', icon: Icons.more_horiz_rounded),
 ];
 
-Future<bool?> showReparationCreateSheet(BuildContext context) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) => const ReparationCreateSheet(),
-  );
-}
-
-class ReparationCreateSheet extends StatefulWidget {
-  const ReparationCreateSheet({super.key});
+class ReparationCreateScreen extends StatefulWidget {
+  const ReparationCreateScreen({super.key});
 
   @override
-  State<ReparationCreateSheet> createState() => _ReparationCreateSheetState();
+  State<ReparationCreateScreen> createState() => _ReparationCreateScreenState();
 }
 
-class _ReparationCreateSheetState extends State<ReparationCreateSheet> {
+class _ReparationCreateScreenState extends State<ReparationCreateScreen> {
   bool _loadingRefs = true;
   String? _refsError;
 
@@ -414,50 +404,45 @@ class _ReparationCreateSheetState extends State<ReparationCreateSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    final sheetHeight = MediaQuery.sizeOf(context).height * 0.92;
+    return Scaffold(
+      backgroundColor: AromaColors.canvas,
+      appBar: AppBar(
+        title: const Text('Nouvelle réparation'),
+        backgroundColor: AromaColors.canvas,
+        foregroundColor: AromaColors.zinc900,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+      ),
+      body: _buildBody(),
+    );
+  }
 
-    return ModernBottomSheetShell(
-      initialChildSize: 0.92,
-      minChildSize: 0.5,
-      maxChildSize: 0.96,
-      margin: EdgeInsets.only(top: MediaQuery.sizeOf(context).height * 0.04),
-      child: SizedBox(
-        height: sheetHeight,
-        child: DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 1,
-          minChildSize: 0.5,
-          maxChildSize: 1,
-          builder: (context, scrollController) {
-          if (_loadingRefs) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (_refsError != null) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(_refsError!, textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _loadRefs,
-                    child: const Text('Réessayer'),
-                  ),
-                ],
-              ),
-            );
-          }
+  Widget _buildBody() {
+    if (_loadingRefs) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_refsError != null) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_refsError!, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loadRefs,
+              child: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      );
+    }
 
-          return ListView(
-            controller: scrollController,
-            padding: EdgeInsets.fromLTRB(24, 12, 24, 24 + bottom),
-            children: [
-              Center(child: modernSheetDragHandle()),
-              const SizedBox(height: 20),
-              _header(),
-              const SizedBox(height: 24),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      children: [
+        _header(),
+        const SizedBox(height: 20),
               _FormSection(
                 title: 'Bénéficiaire',
                 icon: Icons.person_outline_rounded,
@@ -750,11 +735,7 @@ class _ReparationCreateSheetState extends State<ReparationCreateSheet> {
                         ),
                       ),
               ),
-            ],
-          );
-        },
-      ),
-    ),
+      ],
     );
   }
 
@@ -786,16 +767,16 @@ class _ReparationCreateSheetState extends State<ReparationCreateSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Nouvelle réparation',
+                  'Enregistrement d\'un équipement',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.3,
                   ),
                 ),
                 Text(
-                  'Enregistrement d\'un équipement en dépannage',
+                  'Dépannage terrain — ticket de dépôt WhatsApp',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
@@ -803,10 +784,6 @@ class _ReparationCreateSheetState extends State<ReparationCreateSheet> {
                 ),
               ],
             ),
-          ),
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close_rounded, color: Colors.white),
           ),
         ],
       ),

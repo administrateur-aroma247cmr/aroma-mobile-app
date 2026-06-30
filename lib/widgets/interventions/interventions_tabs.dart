@@ -13,7 +13,7 @@ import '../../utils/technician_view.dart';
 import '../../widgets/entity_scope_selector.dart';
 import 'intervention_create_sheet.dart';
 import 'interventions_ui.dart';
-import 'reparation_create_sheet.dart';
+import '../../screens/reparation_create_screen.dart';
 import 'transport_detail_sheet.dart';
 
 // ─── Mes interventions ─────────────────────────────────────────────────────────
@@ -922,7 +922,11 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
   }
 
   Future<void> _openCreate() async {
-    final created = await showReparationCreateSheet(context);
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => const ReparationCreateScreen(),
+      ),
+    );
     if (created == true && mounted) await _reload();
   }
 
