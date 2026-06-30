@@ -2,9 +2,14 @@ import '../models/intervention.dart';
 import '../models/technicien.dart';
 import '../providers/auth_provider.dart';
 
-/// Vue terrain technicien : collaborateur connecté, hors staff privilégié.
+/// Vue terrain : flag explicite fiche RH (`/api/me` → est_technicien_terrain).
 bool isTechnicianFieldView(AuthProvider auth) {
-  return !auth.isPrivilegedStaff && auth.collaborateurId != null;
+  if (auth.isPrivilegedStaff) return false;
+  if (auth.hasEstTechnicienTerrainFlag) {
+    return auth.estTechnicienTerrain;
+  }
+  // Backend pas encore déployé : repli sur le lien fiche technicien.
+  return auth.technicienId != null;
 }
 
 String _normName(String? value) {
@@ -102,14 +107,16 @@ bool isInterventionAssignedToTechnician(
   return false;
 }
 
-/// Plage large pour la vue terrain (sans sélecteur de mois).
-({String from, String to}) technicianInterventionDateRange() {
-  final now = DateTime.now();
-  final from = DateTime(now.year, now.month - 12, 1);
-  final to = DateTime(now.year, now.month + 3, 0);
-  String fmt(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
-  return (from: fmt(from), to: fmt(to));
+bool isReparationAssignedToTechnician(
+  Reparation reparation,
+  TechnicianMatchContext ctx,
+) {
+  final techNom = _normName(reparation.technicienNom);
+  if (techNom.isEmpty || ctx.nameVariants.isEmpty) return false;
+  for (final variant in ctx.nameVariants) {
+    if (variant.isEmpty) continue;
+    if (techNom == variant) return true;
+    if (techNom.contains(variant) || variant.contains(techNom)) return true;
+  }
+  return false;
 }

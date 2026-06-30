@@ -13,12 +13,16 @@ import '../models/collaborateur.dart';
 import '../models/demande_a_payer.dart';
 import '../models/demande_rh.dart';
 import '../models/discipline_rh.dart';
+import '../models/prospect_lite.dart';
 import '../models/recouvrement.dart';
+import '../models/stock_lite.dart';
 import '../models/galerie_fichier.dart';
 import '../models/galerie_folder.dart';
 import '../models/contact_client.dart';
 import '../models/equipement_client.dart';
+import '../models/agence_client.dart';
 import '../models/intervention.dart';
+import '../models/intervention_prospect_cible.dart';
 import '../models/technicien.dart';
 import '../models/rh_dashboard.dart';
 import '../models/tache.dart';
@@ -1377,6 +1381,65 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
+  Future<List<AgenceClient>> listAgences({String? clientId}) async {
+    final q = clientId != null && clientId.isNotEmpty
+        ? <String, String>{'client_id': clientId}
+        : null;
+    final res = await _client.get(
+      _uri('/api/agences', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse agences invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => AgenceClient.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<InterventionProspectCible>> listInterventionProspectCibles() async {
+    final res = await _client.get(
+      _uri('/api/interventions/prospect-cibles'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse prospect-cibles invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map(
+            (e) => InterventionProspectCible.fromJson(
+              Map<String, dynamic>.from(e),
+            ),
+          )
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Intervention> createIntervention(Map<String, dynamic> body) async {
+    final res = await _client.post(
+      _uri('/api/interventions'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return Intervention.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw ApiException('Réponse création intervention invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
   Future<Intervention> getIntervention(String id) async {
     final res = await _client.get(
       _uri('/api/interventions/${Uri.encodeComponent(id)}'),
@@ -1608,6 +1671,111 @@ class AromaApi {
         return ReparationsListResult(items: items, total: items.length);
       }
       throw ApiException('Réponse réparations invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Reparation> createReparation(Map<String, dynamic> body) async {
+    final res = await _client.post(
+      _uri('/api/reparations'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return Reparation.fromJson(Map<String, dynamic>.from(decoded));
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<Map<String, dynamic>>> uploadReparationDocuments(
+    List<String> filePaths,
+  ) async {
+    if (filePaths.isEmpty) return [];
+    final uri = _uri('/api/reparations/documents');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers());
+    for (final path in filePaths) {
+      final safeName = _multipartFilename(null, path);
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'files',
+          path,
+          filename: safeName,
+        ),
+      );
+    }
+    final streamed = await _client.send(request);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List<dynamic>) {
+        throw ApiException('Réponse documents réparation invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<void> sendReparationTicketDepot(
+    String reparationId, {
+    List<String> filePaths = const [],
+  }) async {
+    final uri = _uri(
+      '/api/reparations/${Uri.encodeComponent(reparationId)}/ticket-depot/envoi',
+    );
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers());
+    for (final path in filePaths) {
+      final safeName = _multipartFilename(null, path);
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'files',
+          path,
+          filename: safeName,
+        ),
+      );
+    }
+    final streamed = await _client.send(request);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200 || res.statusCode == 201) return;
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<StockLite>> listStocks() async {
+    final res = await _client.get(_uri('/api/stocks'), headers: _headers());
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse stock invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => StockLite.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<ProspectLite>> listProspectsCommerciaux() async {
+    final res = await _client.get(
+      _uri('/api/commercial/prospects'),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse prospects invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => ProspectLite.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     }
     throw _errorFromResponse(res);
   }

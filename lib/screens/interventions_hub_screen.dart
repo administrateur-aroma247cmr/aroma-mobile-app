@@ -54,8 +54,15 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
     ),
   ];
 
+  static const _technicianTabIds = {'interventions', 'calendrier', 'reparations'};
+
   void _selectTab(String tab) {
     setState(() => _currentTab = tab);
+  }
+
+  List<InterventionsTabConfig> _tabsFor(bool technicianView) {
+    if (!technicianView) return _tabs;
+    return _tabs.where((t) => _technicianTabIds.contains(t.id)).toList();
   }
 
   @override
@@ -63,7 +70,7 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
     final auth = context.watch<AuthProvider>();
     final technicianView = isTechnicianFieldView(auth);
     final moisLabel = monthLabelFr(currentMonthIso());
-    final tabs = technicianView ? _tabs.take(1).toList() : _tabs;
+    final tabs = _tabsFor(technicianView);
     final selectedTab =
         tabs.any((t) => t.id == _currentTab) ? _currentTab : tabs.first.id;
 
@@ -76,21 +83,23 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
             if (!widget.embedded)
               _InterventionsHeader(
                 subtitle: technicianView
-                    ? 'Vos interventions terrain'
+                    ? 'Interventions terrain · $moisLabel'
                     : 'Interventions · $moisLabel',
               ),
             if (!widget.embedded) const SizedBox(height: 8),
-            if (!technicianView)
-              InterventionsTabPills(
-                tabs: tabs,
-                selected: selectedTab,
-                onSelected: _selectTab,
-              ),
-            if (!technicianView) const SizedBox(height: 8),
+            InterventionsTabPills(
+              tabs: tabs,
+              selected: selectedTab,
+              onSelected: _selectTab,
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: switch (selectedTab) {
                 'calendrier' => InterventionsCalendarTab(
-                    key: ValueKey('calendrier-${auth.currentEntityCode}'),
+                    key: ValueKey(
+                      'calendrier-${auth.currentEntityCode}-$technicianView',
+                    ),
+                    technicianFieldView: technicianView,
                   ),
                 'adc' => InterventionsAdcTab(
                     key: ValueKey('adc-${auth.currentEntityCode}'),
@@ -99,7 +108,10 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                     key: ValueKey('transport-${auth.currentEntityCode}'),
                   ),
                 'reparations' => InterventionsReparationsTab(
-                    key: ValueKey('reparations-${auth.currentEntityCode}'),
+                    key: ValueKey(
+                      'reparations-${auth.currentEntityCode}-$technicianView',
+                    ),
+                    technicianFieldView: technicianView,
                   ),
                 'rapports' => InterventionsRapportsTab(
                     key: ValueKey('rapports-${auth.currentEntityCode}'),

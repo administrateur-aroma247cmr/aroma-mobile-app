@@ -17,6 +17,17 @@ abstract final class InterventionsUi {
     end: Alignment.bottomRight,
     colors: [gradientStart, gradientEnd],
   );
+
+  /// Bouton d'action dans une [Row] (évite minWidth infinity des FilledButton).
+  static ButtonStyle compactActionStyle({Color? backgroundColor}) {
+    return FilledButton.styleFrom(
+      backgroundColor: backgroundColor ?? accent,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      minimumSize: Size.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    );
+  }
 }
 
 class InterventionsTabConfig {
@@ -209,39 +220,37 @@ class InterventionsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                gradient: InterventionsUi.gradient,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon, color: Colors.white, size: 36),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: InterventionsUi.gradient,
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: 20),
+            child: Icon(icon, color: Colors.white, size: 36),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
             Text(
-              title,
+              subtitle!,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: const TextStyle(color: AromaColors.zinc500),
             ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                subtitle!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AromaColors.zinc500),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }

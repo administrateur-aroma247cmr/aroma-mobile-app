@@ -8,9 +8,12 @@ import '../../screens/intervention_rapport_screen.dart';
 import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
+import '../../utils/intervention_technician_actions.dart';
 import '../../utils/technician_view.dart';
 import '../../widgets/entity_scope_selector.dart';
+import 'intervention_create_sheet.dart';
 import 'interventions_ui.dart';
+import 'reparation_create_sheet.dart';
 import 'transport_detail_sheet.dart';
 
 // ─── Mes interventions ─────────────────────────────────────────────────────────
@@ -35,6 +38,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
   List<Intervention> _rows = [];
   String _search = '';
   String _monthKey = currentMonthIso();
+  String? _actionBusyId;
 
   @override
   void initState() {
@@ -85,21 +89,11 @@ class _InterventionsListTabState extends State<InterventionsListTab>
       final auth = context.read<AuthProvider>();
       final api = auth.api;
 
-      final InterventionsListResult result;
-      if (widget.technicianFieldView) {
-        final range = technicianInterventionDateRange();
-        result = await api.listInterventions(
-          dateFrom: range.from,
-          dateTo: range.to,
-          limit: 500,
-        );
-      } else {
-        result = await api.listInterventions(
-          dateFrom: _monthDateMin,
-          dateTo: _monthDateMax,
-          limit: 500,
-        );
-      }
+      final result = await api.listInterventions(
+        dateFrom: _monthDateMin,
+        dateTo: _monthDateMax,
+        limit: 500,
+      );
 
       var rows = result.items;
       if (widget.technicianFieldView) {
@@ -134,8 +128,21 @@ class _InterventionsListTabState extends State<InterventionsListTab>
   }
 
   void _openIntervention(Intervention i) {
-    if (widget.technicianFieldView) {
-      Navigator.of(context).push(
+    showInterventionsDetailSheet(
+      context: context,
+      title: 'Intervention',
+      children: interventionDetailRows(i),
+    );
+  }
+
+  Future<void> _onTechnicianAction(
+    Intervention i,
+    TechnicianInterventionAction action,
+  ) async {
+    if (action == TechnicianInterventionAction.none) return;
+    if (action == TechnicianInterventionAction.creerRapport) {
+      if (!mounted) return;
+      await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => InterventionRapportScreen(
             interventionId: i.id,
@@ -143,13 +150,36 @@ class _InterventionsListTabState extends State<InterventionsListTab>
           ),
         ),
       );
+      if (mounted) _reload();
       return;
     }
-    showInterventionsDetailSheet(
-      context: context,
-      title: 'Intervention',
-      children: interventionDetailRows(i),
-    );
+
+    setState(() => _actionBusyId = i.id);
+    try {
+      final api = context.read<AuthProvider>().api;
+      final updated = await api.updateIntervention(i.id, {'etat': 'Démarré'});
+      if (!mounted) return;
+      setState(() {
+        _rows = _rows.map((r) => r.id == i.id ? updated : r).toList();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Intervention démarrée')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _actionBusyId = null);
+    }
+  }
+
+  Future<void> _openCreate() async {
+    final created = await showInterventionCreateSheet(context);
+    if (created == true && mounted) await _reload();
   }
 
   @override
@@ -164,36 +194,52 @@ class _InterventionsListTabState extends State<InterventionsListTab>
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          InterventionsSectionHeader(
-            title: 'Mes interventions',
-            subtitle: widget.technicianFieldView
-                ? 'Touchez une intervention pour créer le rapport photos'
-                : 'Interventions terrain — aligné CRM web',
-          ),
-          if (!widget.technicianFieldView) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () => _shiftMonth(-1),
-                  icon: const Icon(Icons.chevron_left_rounded),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: InterventionsSectionHeader(
+                  title: 'Mes interventions',
+                  subtitle: widget.technicianFieldView
+                      ? 'Vos interventions assignées — détail au toucher'
+                      : 'Interventions terrain — aligné CRM web',
                 ),
-                Expanded(
-                  child: Text(
-                    monthLabelFr(_monthKey),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (!widget.technicianFieldView)
+                FilledButton.icon(
+                  onPressed: _openCreate,
+                  style: InterventionsUi.compactActionStyle(),
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: const Text(
+                    'Créer',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => _shiftMonth(1),
-                  icon: const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _shiftMonth(-1),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              Expanded(
+                child: Text(
+                  monthLabelFr(_monthKey),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ],
-            ),
-          ],
+              ),
+              IconButton(
+                onPressed: () => _shiftMonth(1),
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           TextField(
             decoration: const InputDecoration(
@@ -212,16 +258,57 @@ class _InterventionsListTabState extends State<InterventionsListTab>
             )
           else
             ...rows.map(
-              (i) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: InterventionsListCard(
-                  title: i.titreAffiche,
-                  subtitle:
-                      '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
-                  trailingWidget: InterventionEtatBadge(etat: i.etat),
-                  onTap: () => _openIntervention(i),
-                ),
-              ),
+              (i) {
+                final action = widget.technicianFieldView
+                    ? technicianInterventionAction(i.etat)
+                    : TechnicianInterventionAction.none;
+                final actionLabel =
+                    technicianInterventionActionLabel(action);
+                final busy = _actionBusyId == i.id;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      InterventionsListCard(
+                        title: i.titreAffiche,
+                        subtitle:
+                            '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
+                        trailingWidget: InterventionEtatBadge(etat: i.etat),
+                        onTap: () => _openIntervention(i),
+                      ),
+                      if (action != TechnicianInterventionAction.none) ...[
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: busy
+                              ? null
+                              : () => _onTechnicianAction(i, action),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: action ==
+                                    TechnicianInterventionAction.creerRapport
+                                ? InterventionsUi.gradientStart
+                                : const Color(0xFF18181B),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: busy
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(actionLabel),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             ),
           const SizedBox(height: 24),
         ],
@@ -233,7 +320,12 @@ class _InterventionsListTabState extends State<InterventionsListTab>
 // ─── Mon calendrier ────────────────────────────────────────────────────────────
 
 class InterventionsCalendarTab extends StatefulWidget {
-  const InterventionsCalendarTab({super.key});
+  const InterventionsCalendarTab({
+    super.key,
+    this.technicianFieldView = false,
+  });
+
+  final bool technicianFieldView;
 
   @override
   State<InterventionsCalendarTab> createState() =>
@@ -275,15 +367,23 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
       _error = null;
     });
     try {
-      final api = context.read<AuthProvider>().api;
+      final auth = context.read<AuthProvider>();
+      final api = auth.api;
       final result = await api.listInterventions(
         dateFrom: _monthDateMin,
         dateTo: _monthDateMax,
         limit: 500,
       );
+      var rows = result.items;
+      if (widget.technicianFieldView) {
+        final ctx = await buildTechnicianMatchContext(auth);
+        rows = rows
+            .where((i) => isInterventionAssignedToTechnician(i, ctx))
+            .toList();
+      }
       if (!mounted) return;
       setState(() {
-        _rows = result.items;
+        _rows = rows;
         _loading = false;
       });
     } catch (e) {
@@ -346,6 +446,7 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           const InterventionsSectionHeader(
@@ -577,6 +678,7 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           const InterventionsSectionHeader(
@@ -691,6 +793,7 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           const InterventionsSectionHeader(
@@ -735,7 +838,12 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
 // ─── Réparations ─────────────────────────────────────────────────────────────
 
 class InterventionsReparationsTab extends StatefulWidget {
-  const InterventionsReparationsTab({super.key});
+  const InterventionsReparationsTab({
+    super.key,
+    this.technicianFieldView = false,
+  });
+
+  final bool technicianFieldView;
 
   @override
   State<InterventionsReparationsTab> createState() =>
@@ -761,11 +869,19 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
       _error = null;
     });
     try {
-      final api = context.read<AuthProvider>().api;
+      final auth = context.read<AuthProvider>();
+      final api = auth.api;
       final result = await api.listReparations(limit: 200);
+      var rows = result.items;
+      if (widget.technicianFieldView) {
+        final ctx = await buildTechnicianMatchContext(auth);
+        rows = rows
+            .where((r) => isReparationAssignedToTechnician(r, ctx))
+            .toList();
+      }
       if (!mounted) return;
       setState(() {
-        _rows = result.items;
+        _rows = rows;
         _loading = false;
       });
     } catch (e) {
@@ -805,6 +921,11 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
     );
   }
 
+  Future<void> _openCreate() async {
+    final created = await showReparationCreateSheet(context);
+    if (created == true && mounted) await _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     watchEntityScope(_reload);
@@ -817,11 +938,28 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          const InterventionsSectionHeader(
-            title: 'Mes réparations',
-            subtitle: 'Suivi des équipements en réparation',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: InterventionsSectionHeader(
+                  title: 'Mes réparations',
+                  subtitle: 'Suivi des équipements en réparation',
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: _openCreate,
+                style: InterventionsUi.compactActionStyle(),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text(
+                  'Nouvelle',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           TextField(
@@ -976,6 +1114,7 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
     return RefreshIndicator(
       onRefresh: _reload,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           const InterventionsSectionHeader(

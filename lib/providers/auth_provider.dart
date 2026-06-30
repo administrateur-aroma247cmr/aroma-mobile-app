@@ -87,6 +87,13 @@ class AuthProvider extends ChangeNotifier {
     return s.isEmpty ? null : s;
   }
 
+  /// Flag explicite fiche RH (`/api/me` → est_technicien_terrain).
+  bool get estTechnicienTerrain => _me?['est_technicien_terrain'] == true;
+
+  /// Présent après migration backend ; absent sur anciennes versions API.
+  bool get hasEstTechnicienTerrainFlag =>
+      _me != null && _me!.containsKey('est_technicien_terrain');
+
   String? _technicienId;
 
   /// ID technicien CRM lié au collaborateur connecté (cache).
@@ -101,9 +108,29 @@ class AuthProvider extends ChangeNotifier {
       for (final t in techs) {
         if (t.idCollaborateur == collabId) {
           _technicienId = t.id;
+          notifyListeners();
           return _technicienId;
         }
       }
+      // Rétrocompat : technicien sans id_collaborateur — match par nom collaborateur.
+      try {
+        final collab = await _api.getCollaborateur(collabId);
+        final names = <String>{
+          collab.fullName.trim().toLowerCase(),
+          collab.nom.trim().toLowerCase(),
+        }..removeWhere((s) => s.isEmpty);
+        for (final t in techs) {
+          final n = (t.nom ?? '').trim().toLowerCase();
+          if (n.isEmpty) continue;
+          for (final name in names) {
+            if (n == name || n.contains(name) || name.contains(n)) {
+              _technicienId = t.id;
+              notifyListeners();
+              return _technicienId;
+            }
+          }
+        }
+      } catch (_) {}
     } catch (_) {}
     return null;
   }
@@ -115,6 +142,24 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _resetTechnicienCache() => _technicienId = null;
+
+  /// Résolution id technicien : filtrage interventions (vue terrain uniquement).
+  bool _needsTechnicienIdResolution() {
+    if (hasEstTechnicienTerrainFlag) {
+      return estTechnicienTerrain;
+    }
+    if (isPrivilegedStaff) return false;
+    return true;
+  }
+
+  Future<void> _afterMeLoaded() async {
+    await _syncEntityScope();
+    if (_needsTechnicienIdResolution()) {
+      await ensureTechnicienId();
+    } else {
+      _resetTechnicienCache();
+    }
+  }
 
   Map<String, String> get droits {
     final raw = _me?['droits'];
@@ -256,7 +301,7 @@ class AuthProvider extends ChangeNotifier {
     if (isAuthenticated) {
       try {
         _me = await _api.me();
-        await _syncEntityScope();
+        await _afterMeLoaded();
       } catch (_) {
         _token = null;
         _currentEntityCode = null;
@@ -283,7 +328,7 @@ class AuthProvider extends ChangeNotifier {
         _resetTechnicienCache();
         try {
           _me = await _api.me();
-          await _syncEntityScope();
+          await _afterMeLoaded();
         } catch (_) {
           _me = null;
         }
@@ -315,7 +360,7 @@ class AuthProvider extends ChangeNotifier {
     if (!isAuthenticated) return;
     try {
       _me = await _api.me();
-      await _syncEntityScope();
+      await _afterMeLoaded();
       notifyListeners();
     } catch (_) {}
   }
