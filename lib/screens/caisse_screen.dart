@@ -186,6 +186,7 @@ class _CaisseScreenState extends State<CaisseScreen>
       backgroundColor: AromaColors.canvas,
       floatingActionButton: auth.canCreateCaisseDemande && _currentTab == 'demandes'
           ? FloatingActionButton.extended(
+              heroTag: 'fab-caisse-demande',
               onPressed: () => _openDemandeForm(),
               icon: const Icon(Icons.add),
               label: const Text('Nouvelle demande'),

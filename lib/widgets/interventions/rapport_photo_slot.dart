@@ -6,6 +6,31 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/intervention_rapport_draft.dart';
 import '../../theme/aroma_theme.dart';
 
+/// Liste verticale de slots photo compacts (ligne par critère).
+class RapportPhotoCompactList extends StatelessWidget {
+  const RapportPhotoCompactList({
+    super.key,
+    required this.children,
+    this.gap = 6,
+  });
+
+  final List<Widget> children;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) SizedBox(height: gap),
+          children[i],
+        ],
+      ],
+    );
+  }
+}
+
 /// Grille 2 colonnes pour les slots photo du rapport.
 class RapportPhotoSlotsGrid extends StatelessWidget {
   const RapportPhotoSlotsGrid({
@@ -52,6 +77,7 @@ class RapportPhotoSlotWidget extends StatelessWidget {
     required this.slot,
     required this.onChanged,
     this.gridTile = false,
+    this.compact = false,
     this.uploading = false,
   });
 
@@ -59,6 +85,7 @@ class RapportPhotoSlotWidget extends StatelessWidget {
   final RapportPhotoSlot slot;
   final ValueChanged<RapportPhotoSlot> onChanged;
   final bool gridTile;
+  final bool compact;
   final bool uploading;
 
   static final _picker = ImagePicker();
@@ -79,32 +106,6 @@ class RapportPhotoSlotWidget extends StatelessWidget {
   bool get _isUploaded =>
       slot.galerieId != null && slot.galerieId!.isNotEmpty;
 
-  Widget? _statusBadge() {
-    if (uploading) {
-      return const Positioned(
-        top: 6,
-        left: 6,
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-    if (_isUploaded) {
-      return const Positioned(
-        top: 6,
-        left: 6,
-        child: Icon(
-          Icons.cloud_done_outlined,
-          size: 20,
-          color: Color(0xFF16A34A),
-        ),
-      );
-    }
-    return null;
-  }
-
   Widget? _previewImage() {
     final local = slot.localPath;
     if (local != null && local.isNotEmpty && File(local).existsSync()) {
@@ -119,14 +120,134 @@ class RapportPhotoSlotWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (compact) return _buildCompactRow(context);
     if (gridTile) return _buildGridTile(context);
     return _buildListTile(context);
+  }
+
+  Widget _buildCompactRow(BuildContext context) {
+    final preview = _previewImage();
+    final hasPhoto = preview != null;
+    const accent = Color(0xFF0EA5E9);
+    const done = Color(0xFF16A34A);
+
+    return Material(
+      color: hasPhoto ? Colors.white : const Color(0xFFFAFAFA),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: uploading ? null : () => _capture(context),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: hasPhoto
+                  ? accent.withValues(alpha: 0.45)
+                  : AromaColors.zinc200,
+            ),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: hasPhoto
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            preview,
+                            if (uploading)
+                              ColoredBox(
+                                color: Colors.black26,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      : DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(
+                              color: AromaColors.zinc200,
+                              strokeAlign: BorderSide.strokeAlignInside,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.photo_camera_outlined,
+                            size: 20,
+                            color: accent,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: hasPhoto ? AromaColors.zinc900 : AromaColors.zinc800,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (uploading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (_isUploaded)
+                const Icon(Icons.cloud_done_rounded, size: 18, color: done)
+              else if (hasPhoto)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.check_circle_rounded, size: 18, color: done),
+                    IconButton(
+                      onPressed: _remove,
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                      color: AromaColors.zinc500,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                )
+              else
+                const Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: 22,
+                  color: accent,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildGridTile(BuildContext context) {
     final preview = _previewImage();
     final hasPhoto = preview != null;
-    final badge = _statusBadge();
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -164,10 +285,29 @@ class RapportPhotoSlotWidget extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         preview,
-                        if (badge != null) badge,
+                        if (uploading)
+                          const ColoredBox(
+                            color: Colors.black26,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        if (_isUploaded && !uploading)
+                          const Positioned(
+                            top: 6,
+                            left: 6,
+                            child: Icon(
+                              Icons.cloud_done_outlined,
+                              size: 18,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
                         Positioned(
-                          top: 6,
-                          right: 6,
+                          top: 4,
+                          right: 4,
                           child: _GridActionChip(
                             icon: Icons.close_rounded,
                             color: const Color(0xFFDC2626),
@@ -175,8 +315,8 @@ class RapportPhotoSlotWidget extends StatelessWidget {
                           ),
                         ),
                         Positioned(
-                          bottom: 6,
-                          right: 6,
+                          bottom: 4,
+                          right: 4,
                           child: _GridActionChip(
                             icon: Icons.camera_alt_outlined,
                             color: const Color(0xFF0284C7),
@@ -189,30 +329,24 @@ class RapportPhotoSlotWidget extends StatelessWidget {
                       color: Colors.white,
                       child: InkWell(
                         onTap: () => _capture(context),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AromaColors.zinc200),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add_a_photo_outlined,
-                                size: 28,
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo_outlined,
+                              size: 24,
+                              color: Color(0xFF0284C7),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Photo',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: Color(0xFF0284C7),
                               ),
-                              SizedBox(height: 6),
-                              Text(
-                                'Photo',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0284C7),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -339,8 +473,8 @@ class _GridActionChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 18, color: color),
+          padding: const EdgeInsets.all(5),
+          child: Icon(icon, size: 16, color: color),
         ),
       ),
     );

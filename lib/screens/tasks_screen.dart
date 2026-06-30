@@ -461,6 +461,7 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
                 ],
               ),
               child: FloatingActionButton.extended(
+                heroTag: 'fab-tasks-new',
                 onPressed: () => _openForm(),
                 backgroundColor: Colors.transparent,
                 elevation: 0,

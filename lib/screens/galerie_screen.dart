@@ -1028,6 +1028,7 @@ class GalerieScreenState extends State<GalerieScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab-galerie-add',
         onPressed: _uploading ? null : _showAddSheet,
         icon: const Icon(Icons.add),
         label: const Text('Ajouter'),

@@ -353,73 +353,97 @@ class RapportLieuBlocSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AromaColors.zinc200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
-            child: Column(
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: AromaColors.zinc200, width: 0.5),
+              ),
+            ),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Emplacement $index',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF4F46E5),
+                Container(
+                  width: 3,
+                  height: 36,
+                  margin: const EdgeInsets.only(right: 10, top: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0EA5E9),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                Text(
-                  lieu.label,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Emplacement $index',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0284C7),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      Text(
+                        lieu.label,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: RapportLieuRessentiFields(
               draft: lieu,
               observationController: observationController,
               onChanged: onLieuChanged,
             ),
           ),
-          if (diffuseurs.isNotEmpty) ...[
-            const Divider(height: 1, color: AromaColors.zinc200),
+          if (diffuseurs.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-              child: Text(
-                'Diffuseurs (${diffuseurs.length})',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AromaColors.zinc800,
-                ),
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: Column(
+                children: [
+                  for (var i = 0; i < diffuseurs.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    _DiffuseurPhotosBlock(
+                      index: i + 1,
+                      draft: diffuseurs[i],
+                      uploadingSlots: uploadingSlots,
+                      onPhotoChanged: (key, slot) => onPhotoChanged(
+                        diffuseurs[i].equipementId,
+                        key,
+                        slot,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            ...diffuseurs.asMap().entries.map((entry) {
-              final dIdx = entry.key;
-              final d = entry.value;
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: _DiffuseurPhotosBlock(
-                  index: dIdx + 1,
-                  draft: d,
-                  uploadingSlots: uploadingSlots,
-                  onPhotoChanged: (key, slot) =>
-                      onPhotoChanged(d.equipementId, key, slot),
-                ),
-              );
-            }),
-          ],
         ],
       ),
     );
@@ -535,7 +559,7 @@ class _RessentiCompactPicker extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: ressentiInterventionOptions.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 4),
+            separatorBuilder: (_, _) => const SizedBox(width: 4),
             itemBuilder: (context, i) {
               final v = ressentiInterventionOptions[i];
               final isSelected = selected == v;
@@ -580,7 +604,7 @@ class _RessentiCompactPicker extends StatelessWidget {
   }
 }
 
-class _DiffuseurPhotosBlock extends StatelessWidget {
+class _DiffuseurPhotosBlock extends StatefulWidget {
   const _DiffuseurPhotosBlock({
     required this.index,
     required this.draft,
@@ -594,47 +618,126 @@ class _DiffuseurPhotosBlock extends StatelessWidget {
   final void Function(String checkKey, RapportPhotoSlot slot) onPhotoChanged;
 
   @override
+  State<_DiffuseurPhotosBlock> createState() => _DiffuseurPhotosBlockState();
+}
+
+class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
+  bool _expanded = true;
+
+  int get _filledCount {
+    var n = 0;
+    for (final item in diffuseurCheckItems) {
+      final slot = widget.draft.photos[item.key];
+      if (slot != null && slot.hasPhoto) n++;
+    }
+    return n;
+  }
+
+  int get _totalCount => diffuseurCheckItems.length;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
+    final filled = _filledCount;
+    final total = _totalCount;
+    final progress = total > 0 ? filled / total : 0.0;
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: AromaColors.inputFill,
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AromaColors.zinc200),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Diffuseur $index',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF4F46E5),
-            ),
-          ),
-          Text(
-            draft.label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-          RapportPhotoSlotsGrid(
-            children: [
-              for (final item in diffuseurCheckItems)
-                RapportPhotoSlotWidget(
-                  gridTile: true,
-                  label: item.label,
-                  slot: draft.photos[item.key] ?? RapportPhotoSlot(),
-                  uploading: uploadingSlots.contains(
-                    '${draft.equipementId}_${item.key}',
-                  ),
-                  onChanged: (s) => onPhotoChanged(item.key, s),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Diffuseur ${widget.index}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF6366F1),
+                            ),
+                          ),
+                          Text(
+                            widget.draft.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$filled/$total',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AromaColors.zinc800,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 36,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 4,
+                          backgroundColor: AromaColors.zinc200,
+                          color: filled == total
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFF0EA5E9),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: AromaColors.zinc500,
+                    ),
+                  ],
                 ),
-            ],
+              ),
+            ),
           ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: RapportPhotoCompactList(
+                children: [
+                  for (final item in diffuseurCheckItems)
+                    RapportPhotoSlotWidget(
+                      compact: true,
+                      label: item.label,
+                      slot: widget.draft.photos[item.key] ?? RapportPhotoSlot(),
+                      uploading: widget.uploadingSlots.contains(
+                        '${widget.draft.equipementId}_${item.key}',
+                      ),
+                      onChanged: (s) => widget.onPhotoChanged(item.key, s),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );

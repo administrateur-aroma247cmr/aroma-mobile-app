@@ -761,22 +761,18 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         ),
         const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AromaColors.zinc200),
           ),
-          child: RapportPhotoSlotsGrid(
-            children: [
-              RapportPhotoSlotWidget(
-                gridTile: true,
-                label: 'Photo du technicien',
-                slot: draft.technicienPhoto,
-                uploading: _uploadingSlots.contains('technicien'),
-                onChanged: _setTechnicienPhoto,
-              ),
-            ],
+          child: RapportPhotoSlotWidget(
+            compact: true,
+            label: 'Photo du technicien',
+            slot: draft.technicienPhoto,
+            uploading: _uploadingSlots.contains('technicien'),
+            onChanged: _setTechnicienPhoto,
           ),
         ),
         const SizedBox(height: 24),
@@ -809,7 +805,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
             final l = entry.value;
             final diffuseurs = _diffuseursForLieu(draft, l.lieuKey);
             return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 12),
               child: RapportLieuBlocSection(
                 index: idx + 1,
                 lieu: l,

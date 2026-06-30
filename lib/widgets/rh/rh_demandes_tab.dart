@@ -172,6 +172,7 @@ class _RhDemandesTabState extends State<RhDemandesTab>
                 ],
               ),
               child: FloatingActionButton.extended(
+                heroTag: 'fab-rh-demande',
                 onPressed: _openCreateDialog,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
