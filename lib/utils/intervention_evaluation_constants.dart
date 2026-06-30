@@ -53,6 +53,30 @@ const diffuseurCheckItems = <DiffuseurCheckItemDef>[
   ),
 ];
 
+const contactCiviliteOptions = <String>['', 'M.', 'Mme', 'Mlle'];
+
+/// Échelle 0–10 (alignée fiche ADC / retour intervention web).
+const ressentiInterventionOptions = <String>[
+  '',
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+];
+
+String ressentiInterventionLabel(String? raw) {
+  final v = (raw ?? '').trim();
+  if (v.isEmpty) return '—';
+  return v;
+}
+
 String buildDiffuseurEmplacementLabel({
   String? emplacement,
   String? typeDiffuseur,

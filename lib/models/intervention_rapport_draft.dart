@@ -45,10 +45,168 @@ class RapportPhotoSlot {
   }
 }
 
+/// Personne accompagnante (aligné retour intervention web).
+class RapportContactAccompagnant {
+  RapportContactAccompagnant({
+    this.contactId,
+    this.civilite,
+    this.nom,
+    this.prenom,
+    this.poste,
+    this.telephone,
+  });
+
+  final String? contactId;
+  final String? civilite;
+  final String? nom;
+  final String? prenom;
+  final String? poste;
+  final String? telephone;
+
+  bool get hasContent =>
+      (contactId ?? '').isNotEmpty ||
+      (civilite ?? '').trim().isNotEmpty ||
+      (nom ?? '').trim().isNotEmpty ||
+      (prenom ?? '').trim().isNotEmpty ||
+      (poste ?? '').trim().isNotEmpty ||
+      (telephone ?? '').trim().isNotEmpty;
+
+  bool get isComplete => (nom ?? '').trim().isNotEmpty;
+
+  RapportContactAccompagnant copyWith({
+    String? contactId,
+    String? civilite,
+    String? nom,
+    String? prenom,
+    String? poste,
+    String? telephone,
+    bool clearContactId = false,
+  }) {
+    return RapportContactAccompagnant(
+      contactId: clearContactId ? null : (contactId ?? this.contactId),
+      civilite: civilite ?? this.civilite,
+      nom: nom ?? this.nom,
+      prenom: prenom ?? this.prenom,
+      poste: poste ?? this.poste,
+      telephone: telephone ?? this.telephone,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        if (contactId != null) 'contact_id': contactId,
+        if (civilite != null) 'civilite': civilite,
+        if (nom != null) 'nom': nom,
+        if (prenom != null) 'prenom': prenom,
+        if (poste != null) 'poste': poste,
+        if (telephone != null) 'telephone': telephone,
+      };
+
+  factory RapportContactAccompagnant.fromJson(Map<String, dynamic> m) {
+    String? str(dynamic v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
+    return RapportContactAccompagnant(
+      contactId: str(m['contact_id']),
+      civilite: str(m['civilite']),
+      nom: str(m['nom']),
+      prenom: str(m['prenom']),
+      poste: str(m['poste']),
+      telephone: str(m['telephone']),
+    );
+  }
+}
+
+/// Ressenti et observation pour un lieu (site ou emplacement).
+class RapportLieuDraft {
+  RapportLieuDraft({
+    required this.lieuKey,
+    required this.label,
+    this.ressentiArriveeTechnicien,
+    this.ressentiDepartTechnicien,
+    this.ressentiClient,
+    this.observation,
+  });
+
+  final String lieuKey;
+  final String label;
+  final String? ressentiArriveeTechnicien;
+  final String? ressentiDepartTechnicien;
+  /// Ressenti client au départ (aligné `ressenti_client` intervention).
+  final String? ressentiClient;
+  final String? observation;
+
+  RapportLieuDraft copyWith({
+    String? ressentiArriveeTechnicien,
+    String? ressentiDepartTechnicien,
+    String? ressentiClient,
+    String? observation,
+  }) {
+    return RapportLieuDraft(
+      lieuKey: lieuKey,
+      label: label,
+      ressentiArriveeTechnicien:
+          ressentiArriveeTechnicien ?? this.ressentiArriveeTechnicien,
+      ressentiDepartTechnicien:
+          ressentiDepartTechnicien ?? this.ressentiDepartTechnicien,
+      ressentiClient: ressentiClient ?? this.ressentiClient,
+      observation: observation ?? this.observation,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'lieu_key': lieuKey,
+        'label': label,
+        if (ressentiArriveeTechnicien != null)
+          'ressenti_arrivee_technicien': ressentiArriveeTechnicien,
+        if (ressentiDepartTechnicien != null)
+          'ressenti_depart_technicien': ressentiDepartTechnicien,
+        if (ressentiClient != null) 'ressenti_client': ressentiClient,
+        if (observation != null) 'observation': observation,
+      };
+
+  factory RapportLieuDraft.fromJson(Map<String, dynamic> m) {
+    String? str(dynamic v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
+    return RapportLieuDraft(
+      lieuKey: '${m['lieu_key'] ?? m['label'] ?? ''}',
+      label: '${m['label'] ?? ''}',
+      ressentiArriveeTechnicien: str(m['ressenti_arrivee_technicien']),
+      ressentiDepartTechnicien: str(m['ressenti_depart_technicien']),
+      ressentiClient: str(m['ressenti_client']) ??
+          str(m['ressenti_depart_accompagnant']),
+      observation: str(m['observation']),
+    );
+  }
+}
+
+String rapportLieuKeyForEmplacement(String? emplacement) {
+  final e = (emplacement ?? '').trim();
+  return e.isNotEmpty ? e : 'site';
+}
+
+List<RapportLieuDraft> buildDefaultRapportLieux({
+  required String siteLabel,
+  required List<String> emplacements,
+}) {
+  final uniqueEmplacements = emplacements
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toSet()
+      .toList()
+    ..sort();
+  if (uniqueEmplacements.isEmpty) {
+    final label = siteLabel.trim().isNotEmpty ? siteLabel.trim() : 'Site';
+    return [RapportLieuDraft(lieuKey: 'site', label: label)];
+  }
+  return uniqueEmplacements
+      .map((e) => RapportLieuDraft(lieuKey: e, label: e))
+      .toList();
+}
+
 class RapportDiffuseurDraft {
   RapportDiffuseurDraft({
     required this.equipementId,
     required this.label,
+    this.lieuKey,
     this.traite = true,
     Map<String, RapportPhotoSlot>? photos,
     Map<String, String>? values,
@@ -57,18 +215,23 @@ class RapportDiffuseurDraft {
 
   final String equipementId;
   final String label;
+  /// Emplacement du site (`site` si non renseigné).
+  final String? lieuKey;
   final bool traite;
   final Map<String, RapportPhotoSlot> photos;
   final Map<String, String> values;
 
   RapportDiffuseurDraft copyWith({
+    String? label,
+    String? lieuKey,
     bool? traite,
     Map<String, RapportPhotoSlot>? photos,
     Map<String, String>? values,
   }) {
     return RapportDiffuseurDraft(
       equipementId: equipementId,
-      label: label,
+      label: label ?? this.label,
+      lieuKey: lieuKey ?? this.lieuKey,
       traite: traite ?? this.traite,
       photos: photos ?? Map<String, RapportPhotoSlot>.from(this.photos),
       values: values ?? Map<String, String>.from(this.values),
@@ -78,6 +241,7 @@ class RapportDiffuseurDraft {
   Map<String, dynamic> toJson() => {
         'equipement_id': equipementId,
         'label': label,
+        if (lieuKey != null) 'lieu_key': lieuKey,
         'traite': traite,
         'photos': photos.map((k, v) => MapEntry(k, v.toJson())),
         'values': values,
@@ -106,6 +270,7 @@ class RapportDiffuseurDraft {
     return RapportDiffuseurDraft(
       equipementId: '${m['equipement_id']}',
       label: '${m['label'] ?? ''}',
+      lieuKey: m['lieu_key']?.toString(),
       traite: m['traite'] != false,
       photos: photos,
       values: values,
@@ -118,13 +283,19 @@ class InterventionRapportDraft {
     required this.interventionId,
     this.interventionRef,
     RapportPhotoSlot? technicienPhoto,
+    RapportContactAccompagnant? contactAccompagnant,
+    this.lieux = const [],
     this.diffuseurs = const [],
     this.updatedAt,
-  }) : technicienPhoto = technicienPhoto ?? RapportPhotoSlot();
+  })  : technicienPhoto = technicienPhoto ?? RapportPhotoSlot(),
+        contactAccompagnant =
+            contactAccompagnant ?? RapportContactAccompagnant();
 
   final String interventionId;
   final String? interventionRef;
   final RapportPhotoSlot technicienPhoto;
+  final RapportContactAccompagnant contactAccompagnant;
+  final List<RapportLieuDraft> lieux;
   final List<RapportDiffuseurDraft> diffuseurs;
   final String? updatedAt;
 
@@ -150,6 +321,8 @@ class InterventionRapportDraft {
 
   InterventionRapportDraft copyWith({
     RapportPhotoSlot? technicienPhoto,
+    RapportContactAccompagnant? contactAccompagnant,
+    List<RapportLieuDraft>? lieux,
     List<RapportDiffuseurDraft>? diffuseurs,
     String? updatedAt,
   }) {
@@ -157,6 +330,8 @@ class InterventionRapportDraft {
       interventionId: interventionId,
       interventionRef: interventionRef,
       technicienPhoto: technicienPhoto ?? this.technicienPhoto,
+      contactAccompagnant: contactAccompagnant ?? this.contactAccompagnant,
+      lieux: lieux ?? this.lieux,
       diffuseurs: diffuseurs ?? this.diffuseurs,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -166,6 +341,8 @@ class InterventionRapportDraft {
         'intervention_id': interventionId,
         if (interventionRef != null) 'intervention_ref': interventionRef,
         'technicien_photo': technicienPhoto.toJson(),
+        'contact_accompagnant': contactAccompagnant.toJson(),
+        'lieux': lieux.map((l) => l.toJson()).toList(),
         'diffuseurs': diffuseurs.map((d) => d.toJson()).toList(),
         if (updatedAt != null) 'updated_at': updatedAt,
       };
@@ -183,12 +360,28 @@ class InterventionRapportDraft {
       }
     }
     final rawTech = m['technicien_photo'];
+    final rawContact = m['contact_accompagnant'];
+    final rawLieux = m['lieux'];
+    final lieux = <RapportLieuDraft>[];
+    if (rawLieux is List) {
+      for (final e in rawLieux) {
+        if (e is Map) {
+          lieux.add(RapportLieuDraft.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
     return InterventionRapportDraft(
       interventionId: '${m['intervention_id']}',
       interventionRef: m['intervention_ref']?.toString(),
       technicienPhoto: rawTech is Map
           ? RapportPhotoSlot.fromJson(Map<String, dynamic>.from(rawTech))
           : RapportPhotoSlot(),
+      contactAccompagnant: rawContact is Map
+          ? RapportContactAccompagnant.fromJson(
+              Map<String, dynamic>.from(rawContact),
+            )
+          : RapportContactAccompagnant(),
+      lieux: lieux,
       diffuseurs: diffuseurs,
       updatedAt: m['updated_at']?.toString(),
     );

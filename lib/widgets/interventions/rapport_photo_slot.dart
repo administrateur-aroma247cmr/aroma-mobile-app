@@ -52,12 +52,14 @@ class RapportPhotoSlotWidget extends StatelessWidget {
     required this.slot,
     required this.onChanged,
     this.gridTile = false,
+    this.uploading = false,
   });
 
   final String label;
   final RapportPhotoSlot slot;
   final ValueChanged<RapportPhotoSlot> onChanged;
   final bool gridTile;
+  final bool uploading;
 
   static final _picker = ImagePicker();
 
@@ -72,6 +74,35 @@ class RapportPhotoSlotWidget extends StatelessWidget {
 
   void _remove() {
     onChanged(RapportPhotoSlot());
+  }
+
+  bool get _isUploaded =>
+      slot.galerieId != null && slot.galerieId!.isNotEmpty;
+
+  Widget? _statusBadge() {
+    if (uploading) {
+      return const Positioned(
+        top: 6,
+        left: 6,
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (_isUploaded) {
+      return const Positioned(
+        top: 6,
+        left: 6,
+        child: Icon(
+          Icons.cloud_done_outlined,
+          size: 20,
+          color: Color(0xFF16A34A),
+        ),
+      );
+    }
+    return null;
   }
 
   Widget? _previewImage() {
@@ -95,6 +126,7 @@ class RapportPhotoSlotWidget extends StatelessWidget {
   Widget _buildGridTile(BuildContext context) {
     final preview = _previewImage();
     final hasPhoto = preview != null;
+    final badge = _statusBadge();
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -132,6 +164,7 @@ class RapportPhotoSlotWidget extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         preview,
+                        if (badge != null) badge,
                         Positioned(
                           top: 6,
                           right: 6,

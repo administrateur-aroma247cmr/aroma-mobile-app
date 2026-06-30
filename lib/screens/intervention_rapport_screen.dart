@@ -1,18 +1,23 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/contact_client.dart';
 import '../models/equipement_client.dart';
 import '../models/intervention.dart';
 import '../models/intervention_rapport_draft.dart';
 import '../providers/auth_provider.dart';
+import '../services/aroma_api.dart';
 import '../services/intervention_rapport_store.dart';
+import '../services/intervention_rapport_upload_service.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_evaluation_constants.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/interventions/rapport_photo_slot.dart';
+import '../widgets/interventions/rapport_retour_section.dart';
 
 /// Création du rapport d’intervention — photos par critère (sans preview PDF).
 class InterventionRapportScreen extends StatefulWidget {
@@ -36,7 +41,12 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   String? _error;
   Intervention? _intervention;
   InterventionRapportDraft? _draft;
-  final _peseeControllers = <String, TextEditingController>{};
+  List<ContactClient> _contacts = [];
+  bool _loadingContacts = false;
+  final _observationControllers = <String, TextEditingController>{};
+  final _uploadingSlots = <String>{};
+  Timer? _autoSaveTimer;
+  InterventionRapportUploadService? _uploadService;
 
   @override
   void initState() {
@@ -46,14 +56,84 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
 
   @override
   void dispose() {
-    for (final c in _peseeControllers.values) {
+    _autoSaveTimer?.cancel();
+    for (final c in _observationControllers.values) {
       c.dispose();
     }
     super.dispose();
   }
 
-  TextEditingController _peseeController(String key, String initial) {
-    return _peseeControllers.putIfAbsent(
+  String _rapportFolder(Intervention intervention) {
+    final ref = (intervention.ref ?? intervention.id).replaceAll('/', '-');
+    return 'Rapports/$ref';
+  }
+
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 600), () {
+      unawaited(_persistDraftLocal(silent: true));
+    });
+  }
+
+  Future<void> _persistDraftLocal({bool silent = false}) async {
+    final draft = _draft;
+    if (draft == null) return;
+    try {
+      await InterventionRapportStore.save(
+        draft.copyWith(updatedAt: DateTime.now().toIso8601String()),
+      );
+    } catch (e) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
+  }
+
+  Future<void> _uploadSlotInBackground({
+    required String slotKey,
+    required RapportPhotoSlot slot,
+    required void Function(RapportPhotoSlot) onUpdated,
+  }) async {
+    final intervention = _intervention;
+    final uploadService = _uploadService;
+    if (intervention == null || uploadService == null) return;
+    if (slot.galerieId != null && slot.galerieId!.isNotEmpty) return;
+    final local = slot.localPath;
+    if (local == null || local.isEmpty || !File(local).existsSync()) return;
+
+    if (!mounted) return;
+    setState(() => _uploadingSlots.add(slotKey));
+    try {
+      final uploaded = await uploadService.uploadSlotIfNeeded(
+        slot: slot,
+        folder: _rapportFolder(intervention),
+      );
+      if (!mounted) return;
+      onUpdated(uploaded);
+      final draft = _draft;
+      if (draft != null) {
+        await InterventionRapportStore.save(draft);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Envoi photo : $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingSlots.remove(slotKey));
+      }
+    }
+  }
+
+  TextEditingController _observationController(String key, String initial) {
+    return _observationControllers.putIfAbsent(
       key,
       () => TextEditingController(text: initial),
     );
@@ -91,15 +171,50 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         ),
       );
 
+      final siteLabel = intervention.siteAffiche.isNotEmpty
+          ? intervention.siteAffiche
+          : (intervention.ville ?? 'Site');
+      final emplacements = siteEquipements
+          .map((e) => e.emplacement ?? '')
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+      final defaultLieux = buildDefaultRapportLieux(
+        siteLabel: siteLabel,
+        emplacements: emplacements,
+      );
+
+      List<ContactClient> contacts = [];
+      if (clientId != null && clientId.isNotEmpty) {
+        setState(() => _loadingContacts = true);
+        try {
+          final all = await api.listContacts(clientId: clientId);
+          final siteId = intervention.idAgence;
+          contacts = all
+              .where(
+                (c) =>
+                    siteId == null ||
+                    siteId.isEmpty ||
+                    c.idAgence == null ||
+                    c.idAgence!.isEmpty ||
+                    c.idAgence == siteId,
+              )
+              .toList();
+        } catch (_) {
+          contacts = [];
+        }
+      }
+
       var draft = await InterventionRapportStore.load(widget.interventionId);
       if (draft == null) {
         draft = InterventionRapportDraft(
           interventionId: intervention.id,
           interventionRef: intervention.ref,
+          lieux: defaultLieux,
           diffuseurs: siteEquipements
               .map(
                 (e) => RapportDiffuseurDraft(
                   equipementId: e.id,
+                  lieuKey: rapportLieuKeyForEmplacement(e.emplacement),
                   label: buildDiffuseurEmplacementLabel(
                     emplacement: e.emplacement,
                     typeDiffuseur: e.typeDiffuseur,
@@ -114,6 +229,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
               .toList(),
         );
       } else {
+        draft = _mergeLieux(draft, defaultLieux);
         draft = _mergeDiffuseurs(draft, siteEquipements);
       }
 
@@ -121,9 +237,12 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       setState(() {
         _intervention = intervention;
         _draft = draft;
+        _contacts = contacts;
+        _loadingContacts = false;
         _loading = false;
+        _uploadService = InterventionRapportUploadService(api);
       });
-      _syncPeseeControllers();
+      _syncObservationControllers();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -131,6 +250,26 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         _loading = false;
       });
     }
+  }
+
+  InterventionRapportDraft _mergeLieux(
+    InterventionRapportDraft draft,
+    List<RapportLieuDraft> defaults,
+  ) {
+    if (draft.lieux.isNotEmpty) {
+      final existing = {for (final l in draft.lieux) l.lieuKey: l};
+      final merged = <RapportLieuDraft>[];
+      for (final d in defaults) {
+        merged.add(existing[d.lieuKey] ?? d);
+      }
+      for (final l in draft.lieux) {
+        if (!merged.any((m) => m.lieuKey == l.lieuKey)) {
+          merged.add(l);
+        }
+      }
+      return draft.copyWith(lieux: merged);
+    }
+    return draft.copyWith(lieux: defaults);
   }
 
   InterventionRapportDraft _mergeDiffuseurs(
@@ -142,19 +281,22 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     };
     final merged = <RapportDiffuseurDraft>[];
     for (final e in equipements) {
+      final lieuKey = rapportLieuKeyForEmplacement(e.emplacement);
+      final label = buildDiffuseurEmplacementLabel(
+        emplacement: e.emplacement,
+        typeDiffuseur: e.typeDiffuseur,
+        reference: e.reference,
+      );
       final prev = existing[e.id];
       if (prev != null) {
-        merged.add(prev);
+        merged.add(prev.copyWith(label: label, lieuKey: lieuKey));
         continue;
       }
       merged.add(
         RapportDiffuseurDraft(
           equipementId: e.id,
-          label: buildDiffuseurEmplacementLabel(
-            emplacement: e.emplacement,
-            typeDiffuseur: e.typeDiffuseur,
-            reference: e.reference,
-          ),
+          lieuKey: lieuKey,
+          label: label,
           photos: {
             for (final item in diffuseurCheckItems)
               item.key: RapportPhotoSlot(),
@@ -165,26 +307,64 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     return draft.copyWith(diffuseurs: merged);
   }
 
-  void _syncPeseeControllers() {
+  List<RapportDiffuseurDraft> _diffuseursForLieu(
+    InterventionRapportDraft draft,
+    String lieuKey,
+  ) {
+    return draft.diffuseurs
+        .where((d) => (d.lieuKey ?? 'site') == lieuKey)
+        .toList();
+  }
+
+  void _syncObservationControllers() {
     final draft = _draft;
     if (draft == null) return;
-    for (final d in draft.diffuseurs) {
-      for (final item in diffuseurCheckItems) {
-        if (!item.numeric) continue;
-        final key = '${d.equipementId}_${item.key}';
-        final value = d.values[item.key] ?? '';
-        final ctrl = _peseeControllers[key];
-        if (ctrl != null) {
-          if (ctrl.text != value) ctrl.text = value;
-        }
+    for (final l in draft.lieux) {
+      final key = l.lieuKey;
+      final value = l.observation ?? '';
+      final ctrl = _observationControllers[key];
+      if (ctrl != null) {
+        if (ctrl.text != value) ctrl.text = value;
       }
     }
+  }
+
+  void _setContactAccompagnant(RapportContactAccompagnant contact) {
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() => _draft = draft.copyWith(contactAccompagnant: contact));
+    _scheduleAutoSave();
+  }
+
+  void _setLieuDraft(String lieuKey, RapportLieuDraft lieu) {
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() {
+      _draft = draft.copyWith(
+        lieux: draft.lieux
+            .map((l) => l.lieuKey == lieuKey ? lieu : l)
+            .toList(),
+      );
+    });
+    _scheduleAutoSave();
   }
 
   void _setTechnicienPhoto(RapportPhotoSlot slot) {
     final draft = _draft;
     if (draft == null) return;
     setState(() => _draft = draft.copyWith(technicienPhoto: slot));
+    _scheduleAutoSave();
+    unawaited(
+      _uploadSlotInBackground(
+        slotKey: 'technicien',
+        slot: slot,
+        onUpdated: (uploaded) {
+          final d = _draft;
+          if (d == null) return;
+          setState(() => _draft = d.copyWith(technicienPhoto: uploaded));
+        },
+      ),
+    );
   }
 
   void _setDiffuseurPhoto(
@@ -204,21 +384,27 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         }).toList(),
       );
     });
-  }
-
-  void _setPeseeValue(String equipementId, String checkKey, String value) {
-    final draft = _draft;
-    if (draft == null) return;
-    setState(() {
-      _draft = draft.copyWith(
-        diffuseurs: draft.diffuseurs.map((d) {
-          if (d.equipementId != equipementId) return d;
-          final values = Map<String, String>.from(d.values);
-          values[checkKey] = value;
-          return d.copyWith(values: values);
-        }).toList(),
-      );
-    });
+    _scheduleAutoSave();
+    unawaited(
+      _uploadSlotInBackground(
+        slotKey: '${equipementId}_$checkKey',
+        slot: slot,
+        onUpdated: (uploaded) {
+          final d = _draft;
+          if (d == null) return;
+          setState(() {
+            _draft = d.copyWith(
+              diffuseurs: d.diffuseurs.map((diff) {
+                if (diff.equipementId != equipementId) return diff;
+                final photos = Map<String, RapportPhotoSlot>.from(diff.photos);
+                photos[checkKey] = uploaded;
+                return diff.copyWith(photos: photos);
+              }).toList(),
+            );
+          });
+        },
+      ),
+    );
   }
 
   List<String> _validationErrors() {
@@ -236,20 +422,122 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         if (photo == null || !photo.hasPhoto) {
           errors.add('$label : ${item.label} — photo requise');
         }
-        if (item.numeric) {
-          final raw = (d.values[item.key] ?? '').trim();
-          if (raw.isEmpty) {
-            errors.add('$label : ${item.label} — poids requis');
-          } else {
-            final n = double.tryParse(raw.replaceAll(',', '.'));
-            if (n == null || n < 0) {
-              errors.add('$label : ${item.label} — poids invalide');
-            }
-          }
-        }
       }
     }
     return errors;
+  }
+
+  String _buildRetourInterventionText(InterventionRapportDraft draft) {
+    final blocks = <String>[];
+    for (final l in draft.lieux) {
+      final obs = (l.observation ?? '').trim();
+      final parts = <String>[];
+      if ((l.ressentiArriveeTechnicien ?? '').isNotEmpty) {
+        parts.add('Arrivée tech: ${l.ressentiArriveeTechnicien}');
+      }
+      if ((l.ressentiDepartTechnicien ?? '').isNotEmpty) {
+        parts.add('Départ tech: ${l.ressentiDepartTechnicien}');
+      }
+      if ((l.ressentiClient ?? '').isNotEmpty) {
+        parts.add('Ressenti client: ${l.ressentiClient}');
+      }
+      if (obs.isNotEmpty || parts.isNotEmpty) {
+        final header = '[${l.label}]';
+        blocks.add(
+          [
+            header,
+            if (parts.isNotEmpty) parts.join(' · '),
+            if (obs.isNotEmpty) obs,
+          ].join('\n'),
+        );
+      }
+    }
+    return blocks.join('\n\n');
+  }
+
+  String? _primaryRessentiTechnicien(InterventionRapportDraft draft) {
+    for (final l in draft.lieux) {
+      final v = (l.ressentiDepartTechnicien ?? '').trim();
+      if (v.isNotEmpty) return v;
+    }
+    for (final l in draft.lieux) {
+      final v = (l.ressentiArriveeTechnicien ?? '').trim();
+      if (v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  String? _primaryRessentiClient(InterventionRapportDraft draft) {
+    for (final l in draft.lieux) {
+      final v = (l.ressentiClient ?? '').trim();
+      if (v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  Future<String?> _persistContactAccompagnant(
+    AromaApi api,
+    Intervention intervention,
+    RapportContactAccompagnant contact,
+  ) async {
+    final clientId = intervention.idClients;
+    if (clientId == null || clientId.isEmpty) return null;
+    if (!contact.hasContent) return null;
+    if (!contact.isComplete) return null;
+
+    final civilite = (contact.civilite ?? '').trim();
+    final nom = (contact.nom ?? '').trim();
+    final prenom = (contact.prenom ?? '').trim();
+    final poste = (contact.poste ?? '').trim();
+    final telephone = (contact.telephone ?? '').trim();
+
+    if ((contact.contactId ?? '').isNotEmpty) {
+      final updated = await api.updateContactClient(
+        contact.contactId!,
+        civilite: civilite,
+        nom: nom,
+        prenom: prenom,
+        poste: poste,
+        telephone: telephone,
+      );
+      return updated.id;
+    }
+
+    final created = await api.createContactClient(
+      idTiers: clientId,
+      idAgence: intervention.idAgence,
+      civilite: civilite.isEmpty ? null : civilite,
+      nom: nom,
+      prenom: prenom.isEmpty ? null : prenom,
+      poste: poste.isEmpty ? null : poste,
+      telephone: telephone.isEmpty ? null : telephone,
+    );
+    return created.id;
+  }
+
+  Future<void> _syncRetourToServer(
+    AromaApi api,
+    Intervention intervention,
+    InterventionRapportDraft draft,
+  ) async {
+    final contactId = await _persistContactAccompagnant(
+      api,
+      intervention,
+      draft.contactAccompagnant,
+    );
+    final body = <String, dynamic>{
+      if (contactId != null) 'id_contact': contactId,
+      if (_primaryRessentiClient(draft) != null)
+        'ressenti_client': _primaryRessentiClient(draft),
+      if (_primaryRessentiTechnicien(draft) != null)
+        'ressenti_technicien': _primaryRessentiTechnicien(draft),
+    };
+    final retour = _buildRetourInterventionText(draft).trim();
+    if (retour.isNotEmpty) {
+      body['retour_intervention'] = retour;
+    }
+    if (body.isEmpty) return;
+    await api.updateIntervention(intervention.id, body);
   }
 
   Future<void> _save({bool requireComplete = false}) async {
@@ -310,6 +598,14 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         updatedAt: DateTime.now().toIso8601String(),
       );
       await InterventionRapportStore.save(saved);
+
+      if (requireComplete) {
+        try {
+          await _syncRetourToServer(api, intervention, saved);
+        } catch (_) {
+          // Brouillon local conservé ; sync retour optionnelle.
+        }
+      }
 
       if (!mounted) return;
       setState(() {
@@ -446,6 +742,15 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
           ),
         ),
         const SizedBox(height: 20),
+        RapportContactAccompagnantSection(
+          draft: draft.contactAccompagnant,
+          contacts: _contacts,
+          loadingContacts: _loadingContacts,
+          hasClient:
+              (intervention.idClients ?? '').trim().isNotEmpty,
+          onChanged: _setContactAccompagnant,
+        ),
+        const SizedBox(height: 20),
         const Text(
           'Informations générales',
           style: TextStyle(
@@ -455,19 +760,28 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        RapportPhotoSlotsGrid(
-          children: [
-            RapportPhotoSlotWidget(
-              gridTile: true,
-              label: 'Photo du technicien',
-              slot: draft.technicienPhoto,
-              onChanged: _setTechnicienPhoto,
-            ),
-          ],
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AromaColors.zinc200),
+          ),
+          child: RapportPhotoSlotsGrid(
+            children: [
+              RapportPhotoSlotWidget(
+                gridTile: true,
+                label: 'Photo du technicien',
+                slot: draft.technicienPhoto,
+                uploading: _uploadingSlots.contains('technicien'),
+                onChanged: _setTechnicienPhoto,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
         const Text(
-          'Diffuseurs du site',
+          'Emplacements du site',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -475,7 +789,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        if (draft.diffuseurs.isEmpty)
+        if (draft.lieux.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -484,129 +798,34 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
               color: AromaColors.inputFill,
             ),
             child: const Text(
-              'Aucun diffuseur trouvé pour ce site.',
+              'Aucun emplacement à renseigner.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AromaColors.zinc500),
             ),
           )
         else
-          ...draft.diffuseurs.asMap().entries.map((entry) {
+          ...draft.lieux.asMap().entries.map((entry) {
             final idx = entry.key;
-            final d = entry.value;
+            final l = entry.value;
+            final diffuseurs = _diffuseursForLieu(draft, l.lieuKey);
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: _DiffuseurSection(
+              child: RapportLieuBlocSection(
                 index: idx + 1,
-                draft: d,
-                peseeController: _peseeController,
-                onPhotoChanged: (key, slot) =>
-                    _setDiffuseurPhoto(d.equipementId, key, slot),
-                onPeseeChanged: (key, value) =>
-                    _setPeseeValue(d.equipementId, key, value),
+                lieu: l,
+                diffuseurs: diffuseurs,
+                uploadingSlots: _uploadingSlots,
+                observationController: _observationController(
+                  l.lieuKey,
+                  l.observation ?? '',
+                ),
+                onLieuChanged: (next) => _setLieuDraft(l.lieuKey, next),
+                onPhotoChanged: _setDiffuseurPhoto,
               ),
             );
           }),
         const SizedBox(height: 32),
       ],
-    );
-  }
-}
-
-class _DiffuseurSection extends StatelessWidget {
-  const _DiffuseurSection({
-    required this.index,
-    required this.draft,
-    required this.peseeController,
-    required this.onPhotoChanged,
-    required this.onPeseeChanged,
-  });
-
-  final int index;
-  final RapportDiffuseurDraft draft;
-  final TextEditingController Function(String key, String initial) peseeController;
-  final void Function(String checkKey, RapportPhotoSlot slot) onPhotoChanged;
-  final void Function(String checkKey, String value) onPeseeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AromaColors.zinc200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Diffuseur $index',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF4F46E5),
-                  ),
-                ),
-                Text(
-                  draft.label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            child: RapportPhotoSlotsGrid(
-              children: [
-                for (final item in diffuseurCheckItems)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      RapportPhotoSlotWidget(
-                        gridTile: true,
-                        label: item.label,
-                        slot: draft.photos[item.key] ?? RapportPhotoSlot(),
-                        onChanged: (s) => onPhotoChanged(item.key, s),
-                      ),
-                      if (item.numeric) ...[
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: peseeController(
-                            '${draft.equipementId}_${item.key}',
-                            draft.values[item.key] ?? '',
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          style: const TextStyle(fontSize: 13),
-                          decoration: InputDecoration(
-                            labelText: item.numericPlaceholder ?? 'Poids (g)',
-                            labelStyle: const TextStyle(fontSize: 12),
-                            isDense: true,
-                            filled: true,
-                            fillColor: AromaColors.inputFill,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 10,
-                            ),
-                          ),
-                          onChanged: (v) => onPeseeChanged(item.key, v),
-                        ),
-                      ],
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

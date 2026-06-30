@@ -16,6 +16,7 @@ import '../models/discipline_rh.dart';
 import '../models/recouvrement.dart';
 import '../models/galerie_fichier.dart';
 import '../models/galerie_folder.dart';
+import '../models/contact_client.dart';
 import '../models/equipement_client.dart';
 import '../models/intervention.dart';
 import '../models/technicien.dart';
@@ -1387,6 +1388,133 @@ class AromaApi {
         return Intervention.fromJson(Map<String, dynamic>.from(decoded));
       }
       throw ApiException('Réponse intervention invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<List<ContactClient>> listContacts({String? clientId}) async {
+    final q = clientId != null && clientId.isNotEmpty
+        ? <String, String>{'client_id': clientId}
+        : null;
+    final res = await _client.get(
+      _uri('/api/contacts', q),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        throw ApiException('Réponse contacts invalide.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map((e) => ContactClient.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<ContactClient> createContactClient({
+    required String idTiers,
+    String? idAgence,
+    String? civilite,
+    String? nom,
+    String? prenom,
+    String? poste,
+    String? telephone,
+    String typeContact = 'intervention',
+  }) async {
+    final body = <String, dynamic>{
+      'id_tiers': idTiers,
+      if (idAgence != null && idAgence.isNotEmpty) 'id_agence': idAgence,
+      if (civilite != null && civilite.isNotEmpty) 'civilite': civilite,
+      if (nom != null && nom.isNotEmpty) 'nom': nom,
+      if (prenom != null && prenom.isNotEmpty) 'prenom': prenom,
+      if (poste != null && poste.isNotEmpty) 'poste': poste,
+      if (telephone != null && telephone.isNotEmpty) 'telephone': telephone,
+      'type_contact': typeContact,
+    };
+    final res = await _client.post(
+      _uri('/api/contacts'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return ContactClient.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw ApiException('Réponse création contact invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<ContactClient> updateContactClient(
+    String id, {
+    String? civilite,
+    String? nom,
+    String? prenom,
+    String? poste,
+    String? telephone,
+  }) async {
+    final body = <String, dynamic>{
+      if (civilite != null) 'civilite': civilite.isEmpty ? null : civilite,
+      if (nom != null) 'nom': nom.isEmpty ? null : nom,
+      if (prenom != null) 'prenom': prenom.isEmpty ? null : prenom,
+      if (poste != null) 'poste': poste.isEmpty ? null : poste,
+      if (telephone != null) 'telephone': telephone.isEmpty ? null : telephone,
+    };
+    final res = await _client.patch(
+      _uri('/api/contacts/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return ContactClient.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw ApiException('Réponse mise à jour contact invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<Intervention> updateIntervention(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/interventions/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return Intervention.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw ApiException('Réponse intervention invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  /// Soumission rapport terrain : photos galerie → PDF Drive + évaluation + statut.
+  Future<Intervention> submitInterventionRapportTerrain({
+    required String interventionId,
+    required Map<String, dynamic> body,
+  }) async {
+    final res = await _client.post(
+      _uri(
+        '/api/interventions/${Uri.encodeComponent(interventionId)}/rapport-terrain',
+      ),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return Intervention.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw ApiException('Réponse rapport terrain invalide.');
     }
     throw _errorFromResponse(res);
   }
