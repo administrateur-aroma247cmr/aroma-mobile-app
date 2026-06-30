@@ -482,28 +482,19 @@ class RapportLieuRessentiFields extends StatelessWidget {
                 onChanged(draft.copyWith(ressentiArriveeTechnicien: v)),
           ),
           const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _RessentiCompactPicker(
-                  caption: 'Départ',
-                  label: 'Technicien',
-                  value: draft.ressentiDepartTechnicien ?? '',
-                  onChanged: (v) =>
-                      onChanged(draft.copyWith(ressentiDepartTechnicien: v)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _RessentiCompactPicker(
-                  caption: 'Départ',
-                  label: 'Client',
-                  value: draft.ressentiClient ?? '',
-                  onChanged: (v) => onChanged(draft.copyWith(ressentiClient: v)),
-                ),
-              ),
-            ],
+          _RessentiCompactPicker(
+            caption: 'Départ',
+            label: 'Technicien',
+            value: draft.ressentiDepartTechnicien ?? '',
+            onChanged: (v) =>
+                onChanged(draft.copyWith(ressentiDepartTechnicien: v)),
+          ),
+          const SizedBox(height: 8),
+          _RessentiCompactPicker(
+            caption: 'Départ',
+            label: 'Client',
+            value: draft.ressentiClient ?? '',
+            onChanged: (v) => onChanged(draft.copyWith(ressentiClient: v)),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -744,7 +735,7 @@ class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
   }
 }
 
-class _RapportTextField extends StatelessWidget {
+class _RapportTextField extends StatefulWidget {
   const _RapportTextField({
     required this.label,
     required this.value,
@@ -758,14 +749,40 @@ class _RapportTextField extends StatelessWidget {
   final TextInputType? keyboardType;
 
   @override
+  State<_RapportTextField> createState() => _RapportTextFieldState();
+}
+
+class _RapportTextFieldState extends State<_RapportTextField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(_RapportTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TextFormField(
-      key: ValueKey('$label-$value'),
-      initialValue: value,
-      keyboardType: keyboardType,
+      controller: _controller,
+      keyboardType: widget.keyboardType,
       style: const TextStyle(fontSize: 13),
-      decoration: _fieldDecoration(label: label),
-      onChanged: onChanged,
+      decoration: _fieldDecoration(label: widget.label),
+      onChanged: widget.onChanged,
     );
   }
 }

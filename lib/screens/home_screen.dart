@@ -52,27 +52,35 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 20,
-            mainAxisSpacing: 20,
-            childAspectRatio: 0.92,
-            children: modules
-                .map(
-                  (m) => _ModuleCard(
-                    title: m.title,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: m.gradientColors,
-                    ),
-                    icon: m.icon,
-                    onTap: () => onOpenModule(m.id),
-                  ),
-                )
-                .toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const columns = 3;
+              const spacing = 12.0;
+              final itemWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: modules
+                    .map(
+                      (m) => SizedBox(
+                        width: itemWidth,
+                        child: _ModuleCard(
+                          title: m.title,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: m.gradientColors,
+                          ),
+                          icon: m.icon,
+                          onTap: () => onOpenModule(m.id),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -126,53 +134,43 @@ class _ModuleCardState extends State<_ModuleCard> {
                   ),
                 ],
               ),
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final minSide = c.biggest.shortestSide;
-                  final compact = minSide < 150;
-                  final padding = compact ? 10.0 : 24.0;
-                  final iconBox = compact ? 44.0 : 80.0;
-                  final iconSize = compact ? 24.0 : 46.0;
-                  final gap = compact ? 8.0 : 20.0;
-
-                  return Padding(
-                    padding: EdgeInsets.all(padding),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: iconBox,
-                          height: iconBox,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            gradient: widget.gradient,
-                          ),
-                          child: Icon(
-                            widget.icon,
-                            size: iconSize,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: gap),
-                        Flexible(
-                          child: Text(
-                            widget.title,
-                            textAlign: TextAlign.center,
-                            maxLines: compact ? 1 : 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: AromaColors.zinc900,
-                                  letterSpacing: -0.2,
-                                  fontSize: compact ? 12 : null,
-                                ),
-                          ),
-                        ),
-                      ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        gradient: widget.gradient,
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        size: 20,
+                        color: Colors.white,
+                      ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      softWrap: true,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AromaColors.zinc900,
+                        letterSpacing: -0.1,
+                        height: 1.2,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

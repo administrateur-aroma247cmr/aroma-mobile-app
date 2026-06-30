@@ -515,6 +515,39 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     return created.id;
   }
 
+  Map<String, dynamic> _buildRapportTerrainBody(InterventionRapportDraft draft) {
+    final techId = (draft.technicienPhoto.galerieId ?? '').trim();
+    if (techId.isEmpty) {
+      throw StateError('Photo du technicien non synchronisée — réessayez');
+    }
+
+    final diffuseurs = <Map<String, dynamic>>[];
+    for (final d in draft.diffuseurs) {
+      if (!d.traite) continue;
+      final label = d.label.trim().isNotEmpty ? d.label : 'Diffuseur';
+      final photos = <String, String>{};
+      for (final item in diffuseurCheckItems) {
+        final galerieId = (d.photos[item.key]?.galerieId ?? '').trim();
+        if (galerieId.isEmpty) {
+          throw StateError('$label : ${item.label} — photo non synchronisée');
+        }
+        photos[item.key] = galerieId;
+      }
+      diffuseurs.add({
+        'equipement_id': d.equipementId,
+        'label': label,
+        'traite': true,
+        'photos': photos,
+        if (d.values.isNotEmpty) 'values': d.values,
+      });
+    }
+
+    return {
+      'technicien_photo_id': techId,
+      'diffuseurs': diffuseurs,
+    };
+  }
+
   Future<void> _syncRetourToServer(
     AromaApi api,
     Intervention intervention,
@@ -546,6 +579,16 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     if (draft == null || intervention == null) return;
 
     if (requireComplete) {
+      if (_uploadingSlots.isNotEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Envoi des photos en cours — patientez'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
       final errors = _validationErrors();
       if (errors.isNotEmpty) {
         if (!mounted) return;
@@ -600,10 +643,15 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       await InterventionRapportStore.save(saved);
 
       if (requireComplete) {
+        final terrainBody = _buildRapportTerrainBody(saved);
+        await api.submitInterventionRapportTerrain(
+          interventionId: intervention.id,
+          body: terrainBody,
+        );
         try {
           await _syncRetourToServer(api, intervention, saved);
         } catch (_) {
-          // Brouillon local conservé ; sync retour optionnelle.
+          // PDF + statut OK ; retour texte optionnel.
         }
       }
 
@@ -616,7 +664,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         SnackBar(
           content: Text(
             requireComplete
-                ? 'Rapport enregistré (${saved.countPhotosFilled()} photos)'
+                ? 'Rapport envoyé (${saved.countPhotosFilled()} photos) — visible sur le web'
                 : 'Brouillon enregistré',
           ),
           backgroundColor: const Color(0xFF16A34A),
