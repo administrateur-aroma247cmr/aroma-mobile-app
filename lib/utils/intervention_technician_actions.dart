@@ -46,12 +46,17 @@ TechnicianInterventionAction technicianInterventionAction(String? etat) {
   return TechnicianInterventionAction.none;
 }
 
-String technicianInterventionActionLabel(TechnicianInterventionAction action) {
+String technicianInterventionActionLabel(
+  TechnicianInterventionAction action, {
+  bool hasRapportDraft = false,
+}) {
   switch (action) {
     case TechnicianInterventionAction.demarrer:
       return 'Démarrer';
     case TechnicianInterventionAction.creerRapport:
-      return 'Créer le rapport';
+      return hasRapportDraft
+          ? 'Continuer le rapport'
+          : 'Créer le rapport';
     case TechnicianInterventionAction.none:
       return '';
   }

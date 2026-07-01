@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_technician_actions.dart';
+import '../services/intervention_rapport_store.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import 'intervention_rapport_screen.dart';
 
@@ -14,12 +15,18 @@ class InterventionDetailScreen extends StatefulWidget {
     super.key,
     required this.interventionId,
     this.initialSummary,
-    this.technicianFieldView = false,
+    this.fieldActions = false,
+    this.maskStatuses = false,
   });
 
   final String interventionId;
   final Intervention? initialSummary;
-  final bool technicianFieldView;
+
+  /// Boutons Démarrer / Créer le rapport.
+  final bool fieldActions;
+
+  /// Masque Rapport d'intervention / Rapport envoyé (technicien).
+  final bool maskStatuses;
 
   @override
   State<InterventionDetailScreen> createState() =>
@@ -32,6 +39,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
   String? _error;
   Intervention? _intervention;
   bool _changed = false;
+  bool _hasRapportDraft = false;
 
   @override
   void initState() {
@@ -53,6 +61,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
         _intervention = row;
         _loading = false;
       });
+      await _refreshRapportDraftFlag();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -60,6 +69,12 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _refreshRapportDraftFlag() async {
+    final draft = await InterventionRapportStore.load(widget.interventionId);
+    if (!mounted) return;
+    setState(() => _hasRapportDraft = draft != null);
   }
 
   Future<void> _onTechnicianAction(TechnicianInterventionAction action) async {
@@ -133,10 +148,10 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     }
 
     final i = _intervention!;
-    final action = widget.technicianFieldView
+    final action = widget.fieldActions
         ? technicianInterventionAction(i.etat)
         : TechnicianInterventionAction.none;
-    final displayEtat = widget.technicianFieldView
+    final displayEtat = widget.maskStatuses
         ? interventionEtatForTechnicianDisplay(i.etat)
         : i.etat;
 
@@ -149,9 +164,11 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
         children: [
           _HeroCard(
             intervention: i,
-            technicianFieldView: widget.technicianFieldView,
+            displayEtat: displayEtat,
+            fieldActions: widget.fieldActions,
             action: action,
             actionBusy: _actionBusy,
+            hasRapportDraft: _hasRapportDraft,
             onAction: _onTechnicianAction,
           ),
           const SizedBox(height: 12),
@@ -200,22 +217,26 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.intervention,
-    this.technicianFieldView = false,
+    required this.displayEtat,
+    this.fieldActions = false,
     this.action = TechnicianInterventionAction.none,
     this.actionBusy = false,
+    this.hasRapportDraft = false,
     this.onAction,
   });
 
   final Intervention intervention;
-  final bool technicianFieldView;
+  final String? displayEtat;
+  final bool fieldActions;
   final TechnicianInterventionAction action;
   final bool actionBusy;
+  final bool hasRapportDraft;
   final ValueChanged<TechnicianInterventionAction>? onAction;
 
   @override
   Widget build(BuildContext context) {
     final showAction =
-        technicianFieldView && action != TechnicianInterventionAction.none;
+        fieldActions && action != TechnicianInterventionAction.none;
     final isReport = action == TechnicianInterventionAction.creerRapport;
 
     return Container(
@@ -278,11 +299,7 @@ class _HeroCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              InterventionEtatBadge(
-                etat: technicianFieldView
-                    ? interventionEtatForTechnicianDisplay(intervention.etat)
-                    : intervention.etat,
-              ),
+              InterventionEtatBadge(etat: displayEtat),
             ],
           ),
           const SizedBox(height: 10),
@@ -344,7 +361,12 @@ class _HeroCard extends StatelessWidget {
                             : Colors.white,
                       ),
                     )
-                  : Text(technicianInterventionActionLabel(action)),
+                  : Text(
+                      technicianInterventionActionLabel(
+                        action,
+                        hasRapportDraft: hasRapportDraft,
+                      ),
+                    ),
             ),
           ],
         ],
@@ -493,14 +515,16 @@ class _InfoRow extends StatelessWidget {
 Future<bool?> openInterventionDetail(
   BuildContext context, {
   required Intervention intervention,
-  bool technicianFieldView = false,
+  bool fieldActions = false,
+  bool maskStatuses = false,
 }) {
   return Navigator.of(context).push<bool>(
     MaterialPageRoute<bool>(
       builder: (_) => InterventionDetailScreen(
         interventionId: intervention.id,
         initialSummary: intervention,
-        technicianFieldView: technicianFieldView,
+        fieldActions: fieldActions,
+        maskStatuses: maskStatuses,
       ),
     ),
   );

@@ -134,9 +134,15 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                       ),
                     _ => InterventionsListTab(
                         key: ValueKey(
-                          'interventions-${auth.currentEntityCode}-$technicianView',
+                          'interventions-${auth.currentEntityCode}-'
+                          '${filterInterventionsByTechnicianAssignment(auth)}-'
+                          '${hasInterventionsModuleAccess(auth)}',
                         ),
-                        technicianFieldView: technicianView,
+                        fieldActions: hasInterventionsModuleAccess(auth),
+                        filterByAssignment:
+                            filterInterventionsByTechnicianAssignment(auth),
+                        maskStatuses:
+                            maskInterventionEtatsForTechnician(auth),
                       ),
                   },
                 ),

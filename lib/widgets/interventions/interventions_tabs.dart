@@ -22,11 +22,19 @@ import 'transport_detail_sheet.dart';
 class InterventionsListTab extends StatefulWidget {
   const InterventionsListTab({
     super.key,
-    this.technicianFieldView = false,
+    this.fieldActions = false,
+    this.filterByAssignment = false,
+    this.maskStatuses = false,
   });
 
-  /// Vue terrain : uniquement les interventions assignées au technicien connecté.
-  final bool technicianFieldView;
+  /// Boutons terrain (Démarrer / Créer le rapport) — tous les accès interventions.
+  final bool fieldActions;
+
+  /// Technicien : uniquement les interventions assignées.
+  final bool filterByAssignment;
+
+  /// Technicien : masque Rapport d'intervention / Rapport envoyé.
+  final bool maskStatuses;
 
   @override
   State<InterventionsListTab> createState() => _InterventionsListTabState();
@@ -96,7 +104,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
       );
 
       var rows = result.items;
-      if (widget.technicianFieldView) {
+      if (widget.filterByAssignment) {
         final ctx = await buildTechnicianMatchContext(auth);
         rows = rows
             .where((i) => isInterventionAssignedToTechnician(i, ctx))
@@ -131,7 +139,8 @@ class _InterventionsListTabState extends State<InterventionsListTab>
     final changed = await openInterventionDetail(
       context,
       intervention: i,
-      technicianFieldView: widget.technicianFieldView,
+      fieldActions: widget.fieldActions,
+      maskStatuses: widget.maskStatuses,
     );
     if (changed == true && mounted) await _reload();
   }
@@ -167,12 +176,12 @@ class _InterventionsListTabState extends State<InterventionsListTab>
               Expanded(
                 child: InterventionsSectionHeader(
                   title: 'Mes interventions',
-                  subtitle: widget.technicianFieldView
+                  subtitle: widget.filterByAssignment
                       ? 'Vos missions du mois'
                       : 'Suivi terrain du mois',
                 ),
               ),
-              if (!widget.technicianFieldView)
+              if (!widget.fieldActions)
                 FilledButton.icon(
                   onPressed: _openCreate,
                   style: InterventionsUi.compactActionStyle(),
@@ -199,7 +208,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
           if (rows.isEmpty)
             InterventionsEmptyState(
               title: 'Aucune intervention',
-              subtitle: widget.technicianFieldView
+              subtitle: widget.filterByAssignment
                   ? 'Aucune intervention ne vous est assignée.'
                   : 'Aucune intervention pour cette période.',
             )
@@ -212,7 +221,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                   subtitle:
                       '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
                   trailingWidget: InterventionEtatBadge(
-                    etat: widget.technicianFieldView
+                    etat: widget.maskStatuses
                         ? interventionEtatForTechnicianDisplay(i.etat)
                         : i.etat,
                   ),
@@ -333,7 +342,8 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     final changed = await openInterventionDetail(
       context,
       intervention: i,
-      technicianFieldView: widget.technicianFieldView,
+      fieldActions: widget.technicianFieldView,
+      maskStatuses: widget.technicianFieldView,
     );
     if (changed == true && mounted) await _reload();
   }

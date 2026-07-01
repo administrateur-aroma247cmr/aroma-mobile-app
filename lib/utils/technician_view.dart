@@ -12,6 +12,21 @@ bool isTechnicianFieldView(AuthProvider auth) {
   return auth.technicienId != null;
 }
 
+/// Accès module interventions (staff privilégié ou droit service).
+bool hasInterventionsModuleAccess(AuthProvider auth) {
+  return auth.isPrivilegedStaff || auth.canAccess('interventions');
+}
+
+/// Liste interventions : filtre assignation technicien uniquement.
+bool filterInterventionsByTechnicianAssignment(AuthProvider auth) {
+  return isTechnicianFieldView(auth);
+}
+
+/// Affichage états rapport masqués pour le technicien terrain.
+bool maskInterventionEtatsForTechnician(AuthProvider auth) {
+  return isTechnicianFieldView(auth);
+}
+
 String _normName(String? value) {
   return (value ?? '')
       .trim()
