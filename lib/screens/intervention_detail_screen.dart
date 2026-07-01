@@ -7,6 +7,7 @@ import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_technician_actions.dart';
 import '../widgets/interventions/interventions_ui.dart';
+import 'intervention_rapport_screen.dart';
 
 class InterventionDetailScreen extends StatefulWidget {
   const InterventionDetailScreen({
@@ -63,7 +64,22 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
 
   Future<void> _onTechnicianAction(TechnicianInterventionAction action) async {
     final i = _intervention;
-    if (i == null || action != TechnicianInterventionAction.demarrer) return;
+    if (i == null || action == TechnicianInterventionAction.none) return;
+
+    if (action == TechnicianInterventionAction.creerRapport) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => InterventionRapportScreen(
+            interventionId: i.id,
+            interventionSummary: i,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      _changed = true;
+      await _load();
+      return;
+    }
 
     setState(() => _actionBusy = true);
     try {
@@ -108,16 +124,21 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     );
   }
 
-  Widget _buildActionButton() {
+  Widget _buildActionButton(TechnicianInterventionAction action) {
+    final isReport = action == TechnicianInterventionAction.creerRapport;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: InterventionsUi.softCardDecoration(),
+      decoration: InterventionsUi.softCardDecoration(
+        borderColor: isReport
+            ? InterventionsUi.accent.withValues(alpha: 0.25)
+            : AromaColors.zinc200,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Prise en charge',
-            style: TextStyle(
+          Text(
+            isReport ? 'Rapport terrain' : 'Prise en charge',
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AromaColors.zinc500,
@@ -125,10 +146,8 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
           ),
           const SizedBox(height: 10),
           FilledButton(
-            onPressed: _actionBusy
-                ? null
-                : () => _onTechnicianAction(TechnicianInterventionAction.demarrer),
-            style: InterventionsUi.technicianActionStyle(isReportAction: false),
+            onPressed: _actionBusy ? null : () => _onTechnicianAction(action),
+            style: InterventionsUi.technicianActionStyle(isReportAction: isReport),
             child: _actionBusy
                 ? const SizedBox(
                     width: 22,
@@ -138,9 +157,9 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
                       color: Colors.white,
                     ),
                   )
-                : const Text(
-                    'Démarrer',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                : Text(
+                    technicianInterventionActionLabel(action),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
           ),
         ],
@@ -157,9 +176,13 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     }
 
     final i = _intervention!;
-    final showAction = widget.technicianFieldView &&
-        technicianInterventionAction(i.etat) ==
-            TechnicianInterventionAction.demarrer;
+    final action = widget.technicianFieldView
+        ? technicianInterventionAction(i.etat)
+        : TechnicianInterventionAction.none;
+    final showAction = action != TechnicianInterventionAction.none;
+    final displayEtat = widget.technicianFieldView
+        ? interventionEtatForTechnicianDisplay(i.etat)
+        : i.etat;
 
     return RefreshIndicator(
       color: InterventionsUi.accent,
@@ -168,10 +191,13 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
         children: [
-          _HeroCard(intervention: i),
+          _HeroCard(
+            intervention: i,
+            technicianFieldView: widget.technicianFieldView,
+          ),
           if (showAction) ...[
             const SizedBox(height: 14),
-            _buildActionButton(),
+            _buildActionButton(action),
           ],
           const SizedBox(height: 16),
           _InfoSection(
@@ -193,8 +219,8 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
               _InfoRow('Date', formatDateFr(i.dateIntervention)),
               _InfoRow(
                 'État',
-                i.etat ?? '—',
-                valueWidget: InterventionEtatBadge(etat: i.etat),
+                displayEtat ?? '—',
+                valueWidget: InterventionEtatBadge(etat: displayEtat),
               ),
               _InfoRow('Technicien', i.technicienNom ?? '—'),
               _InfoRow('Auteur', i.auteur ?? '—'),
@@ -217,9 +243,13 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
 }
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.intervention});
+  const _HeroCard({
+    required this.intervention,
+    this.technicianFieldView = false,
+  });
 
   final Intervention intervention;
+  final bool technicianFieldView;
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +312,11 @@ class _HeroCard extends StatelessWidget {
                   ],
                 ),
               ),
-              InterventionEtatBadge(etat: intervention.etat),
+              InterventionEtatBadge(
+                etat: technicianFieldView
+                    ? interventionEtatForTechnicianDisplay(intervention.etat)
+                    : intervention.etat,
+              ),
             ],
           ),
           const SizedBox(height: 16),

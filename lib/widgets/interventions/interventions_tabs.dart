@@ -9,6 +9,7 @@ import '../../screens/intervention_detail_screen.dart';
 import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
+import '../../utils/intervention_technician_actions.dart';
 import '../../utils/technician_view.dart';
 import '../../widgets/entity_scope_selector.dart';
 import 'interventions_ui.dart';
@@ -210,7 +211,11 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                   title: i.titreAffiche,
                   subtitle:
                       '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
-                  trailingWidget: InterventionEtatBadge(etat: i.etat),
+                  trailingWidget: InterventionEtatBadge(
+                    etat: widget.technicianFieldView
+                        ? interventionEtatForTechnicianDisplay(i.etat)
+                        : i.etat,
+                  ),
                   onTap: () => _openIntervention(i),
                 ),
               ),
@@ -414,7 +419,11 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
                   title: i.titreAffiche,
                   subtitle:
                       '${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
-                  trailingWidget: InterventionEtatBadge(etat: i.etat),
+                  trailingWidget: InterventionEtatBadge(
+                    etat: widget.technicianFieldView
+                        ? interventionEtatForTechnicianDisplay(i.etat)
+                        : i.etat,
+                  ),
                   onTap: () => _showDetail(i),
                 ),
               ),
