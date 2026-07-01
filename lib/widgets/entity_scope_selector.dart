@@ -9,9 +9,10 @@ import 'modern_bottom_sheet.dart';
 
 /// Sélecteur CM / CI / Tous les pays (aligné CRM web).
 class EntityScopeSelector extends StatefulWidget {
-  const EntityScopeSelector({super.key, this.compact = false});
+  const EntityScopeSelector({super.key, this.compact = false, this.light = false});
 
   final bool compact;
+  final bool light;
 
   @override
   State<EntityScopeSelector> createState() => _EntityScopeSelectorState();
@@ -90,19 +91,31 @@ class _EntityScopeSelectorState extends State<EntityScopeSelector> {
     final label = _label(code);
 
     if (widget.compact) {
+      final chipColor = widget.light
+          ? Colors.white.withValues(alpha: 0.18)
+          : null;
+      final labelColor = widget.light ? Colors.white : null;
+      final iconColor = widget.light ? Colors.white : AromaColors.zinc800;
       return Padding(
-        padding: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.only(right: 4),
         child: ActionChip(
+          backgroundColor: chipColor,
+          side: widget.light
+              ? BorderSide(color: Colors.white.withValues(alpha: 0.28))
+              : null,
           avatar: flag != null
               ? Text(flag, style: const TextStyle(fontSize: 16))
               : Icon(
                   Icons.public,
                   size: 18,
-                  color: AromaColors.zinc800,
+                  color: iconColor,
                 ),
           label: Text(
             isEntityScopeAll(code) ? 'Tous' : code,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
           ),
           onPressed: _loadingLabels ? null : () => _pickEntity(auth),
         ),
@@ -164,11 +177,13 @@ class _EntityScopeSelectorState extends State<EntityScopeSelector> {
 
 /// Chip compact pour la barre d'app (modules poussés).
 class EntityScopeAppBarAction extends StatelessWidget {
-  const EntityScopeAppBarAction({super.key});
+  const EntityScopeAppBarAction({super.key, this.light = false});
+
+  final bool light;
 
   @override
   Widget build(BuildContext context) {
-    return const EntityScopeSelector(compact: true);
+    return EntityScopeSelector(compact: true, light: light);
   }
 }
 

@@ -6,25 +6,98 @@ import '../../utils/format_utils.dart';
 import '../../utils/intervention_status_colors.dart';
 import '../modern_bottom_sheet.dart';
 
-/// Palette module Interventions — bleu terrain (aligné CRM web).
+/// Palette module Interventions — bleu terrain doux (aligné CRM web).
 abstract final class InterventionsUi {
-  static const gradientStart = Color(0xFF0284C7);
-  static const gradientEnd = Color(0xFF0EA5E9);
-  static const accent = Color(0xFF38BDF8);
+  static const gradientStart = Color(0xFF0EA5E9);
+  static const gradientEnd = Color(0xFF38BDF8);
+  static const accent = Color(0xFF0284C7);
+  static const accentSoft = Color(0xFFE0F2FE);
+  static const accentMuted = Color(0xFFF0F9FF);
+  static const canvasSoft = Color(0xFFF8FAFC);
 
   static const gradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [gradientStart, gradientEnd],
+    colors: [Color(0xFF0EA5E9), Color(0xFF7DD3FC)],
   );
+
+  static const headerGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF0284C7), Color(0xFF38BDF8), Color(0xFFBAE6FD)],
+    stops: [0.0, 0.55, 1.0],
+  );
+
+  static List<BoxShadow> get softShadow => [
+        BoxShadow(
+          color: accent.withValues(alpha: 0.08),
+          blurRadius: 20,
+          offset: const Offset(0, 8),
+        ),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 6,
+          offset: const Offset(0, 2),
+        ),
+      ];
+
+  static BoxDecoration softCardDecoration({Color? borderColor}) {
+    return BoxDecoration(
+      color: AromaColors.surface,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: borderColor ?? accentSoft.withValues(alpha: 0.9),
+      ),
+      boxShadow: softShadow,
+    );
+  }
+
+  static InputDecoration softSearchDecoration({required String hintText}) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(color: AromaColors.zinc500.withValues(alpha: 0.85)),
+      prefixIcon: Icon(
+        Icons.search_rounded,
+        color: AromaColors.zinc500.withValues(alpha: 0.75),
+      ),
+      filled: true,
+      fillColor: AromaColors.surface.withValues(alpha: 0.92),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.6)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: accent.withValues(alpha: 0.35), width: 1.5),
+      ),
+    );
+  }
 
   /// Bouton d'action dans une [Row] (évite minWidth infinity des FilledButton).
   static ButtonStyle compactActionStyle({Color? backgroundColor}) {
     return FilledButton.styleFrom(
       backgroundColor: backgroundColor ?? accent,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       minimumSize: Size.zero,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      elevation: 0,
+      shadowColor: accent.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    );
+  }
+
+  static ButtonStyle technicianActionStyle({required bool isReportAction}) {
+    return FilledButton.styleFrom(
+      backgroundColor: isReportAction ? accent : const Color(0xFF18181B),
+      foregroundColor: Colors.white,
+      minimumSize: const Size.fromHeight(48),
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     );
   }
@@ -97,76 +170,88 @@ class _InterventionsTabPillsState extends State<InterventionsTabPills> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: widget.tabs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final tab = widget.tabs[i];
-          final isSelected = widget.selected == tab.id;
-          return KeyedSubtree(
-            key: _keys[tab.id],
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => widget.onSelected(tab.id),
-                borderRadius: BorderRadius.circular(22),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: isSelected ? InterventionsUi.gradient : null,
-                    color: isSelected ? null : AromaColors.surface,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.transparent
-                          : const Color(0xFFE4E4E7),
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: InterventionsUi.accent
-                                  .withValues(alpha: 0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: AromaColors.surface.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+          boxShadow: InterventionsUi.softShadow,
+        ),
+        child: SizedBox(
+          height: 42,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            itemCount: widget.tabs.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
+            itemBuilder: (context, i) {
+              final tab = widget.tabs[i];
+              final isSelected = widget.selected == tab.id;
+              return KeyedSubtree(
+                key: _keys[tab.id],
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => widget.onSelected(tab.id),
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: isSelected ? InterventionsUi.gradient : null,
+                        color: isSelected
+                            ? null
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: InterventionsUi.accent
+                                      .withValues(alpha: 0.22),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            tab.icon,
+                            size: 16,
+                            color: isSelected
+                                ? Colors.white
+                                : AromaColors.zinc500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            tab.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.1,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AromaColors.zinc800,
                             ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        tab.icon,
-                        size: 16,
-                        color:
-                            isSelected ? Colors.white : AromaColors.zinc500,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        tab.label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: isSelected
-                              ? Colors.white
-                              : AromaColors.zinc800,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          );
-        },
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -177,10 +262,12 @@ class InterventionsSectionHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.light = false,
   });
 
   final String title;
   final String? subtitle;
+  final bool light;
 
   @override
   Widget build(BuildContext context) {
@@ -190,18 +277,107 @@ class InterventionsSectionHeader extends StatelessWidget {
         Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AromaColors.zinc900,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+                color: light ? Colors.white : AromaColors.zinc900,
               ),
         ),
         if (subtitle != null) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Text(
             subtitle!,
-            style: const TextStyle(fontSize: 13, color: AromaColors.zinc500),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: light
+                  ? Colors.white.withValues(alpha: 0.82)
+                  : AromaColors.zinc500,
+            ),
           ),
         ],
       ],
+    );
+  }
+}
+
+class InterventionsMonthNavigator extends StatelessWidget {
+  const InterventionsMonthNavigator({
+    super.key,
+    required this.label,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final String label;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: InterventionsUi.softCardDecoration(),
+      child: Row(
+        children: [
+          _NavButton(icon: Icons.chevron_left_rounded, onTap: onPrevious),
+          Expanded(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                letterSpacing: -0.2,
+                color: AromaColors.zinc900,
+              ),
+            ),
+          ),
+          _NavButton(icon: Icons.chevron_right_rounded, onTap: onNext),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavButton extends StatelessWidget {
+  const _NavButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: InterventionsUi.accentMuted,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, color: InterventionsUi.accent, size: 22),
+        ),
+      ),
+    );
+  }
+}
+
+class InterventionsSearchField extends StatelessWidget {
+  const InterventionsSearchField({
+    super.key,
+    required this.hintText,
+    required this.onChanged,
+  });
+
+  final String hintText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      decoration: InterventionsUi.softSearchDecoration(hintText: hintText),
+      onChanged: onChanged,
     );
   }
 }
@@ -221,25 +397,31 @@ class InterventionsEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 56),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 72,
-            height: 72,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
-              gradient: InterventionsUi.gradient,
-              borderRadius: BorderRadius.circular(20),
+              color: InterventionsUi.accentMuted,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: InterventionsUi.softShadow,
             ),
-            child: Icon(icon, color: Colors.white, size: 36),
+            child: Icon(
+              icon,
+              color: InterventionsUi.accent,
+              size: 36,
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Text(
             title,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                 ),
           ),
           if (subtitle != null) ...[
@@ -247,7 +429,10 @@ class InterventionsEmptyState extends StatelessWidget {
             Text(
               subtitle!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AromaColors.zinc500),
+              style: const TextStyle(
+                color: AromaColors.zinc500,
+                height: 1.4,
+              ),
             ),
           ],
         ],
@@ -277,20 +462,30 @@ class InterventionsListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AromaColors.surface,
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE4E4E7)),
-          ),
+          decoration: InterventionsUi.softCardDecoration(),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: InterventionsUi.accentMuted,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.build_outlined,
+                    color: InterventionsUi.accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,17 +495,20 @@ class InterventionsListCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          letterSpacing: -0.2,
                           color: AromaColors.zinc900,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       Text(
                         subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
+                          height: 1.35,
                           color: AromaColors.zinc500,
                         ),
                       ),
@@ -318,10 +516,10 @@ class InterventionsListCard extends StatelessWidget {
                   ),
                 ),
                 if (trailingWidget != null) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   trailingWidget!,
                 ] else if (trailing != null) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Text(
                     trailing!,
                     style: const TextStyle(
@@ -330,8 +528,12 @@ class InterventionsListCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                const SizedBox(width: 4),
-                Icon(icon, color: AromaColors.zinc500, size: 20),
+                const SizedBox(width: 6),
+                Icon(
+                  icon,
+                  color: AromaColors.zinc400,
+                  size: 22,
+                ),
               ],
             ),
           ),
@@ -374,17 +576,18 @@ class InterventionEtatBadge extends StatelessWidget {
     final label = (etat ?? '').trim().isEmpty ? '—' : etat!.trim();
     final colors = InterventionStatusColors.forEtat(etat);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
+          letterSpacing: 0.1,
           color: colors.foreground,
         ),
       ),
@@ -440,21 +643,31 @@ class AdcListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AromaColors.surface,
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE4E4E7)),
-          ),
+          decoration: InterventionsUi.softCardDecoration(),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: InterventionsUi.accentMuted,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.phone_in_talk_outlined,
+                    color: InterventionsUi.accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,7 +677,9 @@ class AdcListCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          letterSpacing: -0.2,
                           color: AromaColors.zinc900,
                         ),
                       ),
@@ -493,8 +708,8 @@ class AdcListCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Icon(
                       Icons.chevron_right_rounded,
-                      color: AromaColors.zinc500,
-                      size: 20,
+                      color: AromaColors.zinc400,
+                      size: 22,
                     ),
                   ],
                 ),

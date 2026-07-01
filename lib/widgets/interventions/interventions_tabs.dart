@@ -4,11 +4,10 @@ import 'package:provider/provider.dart';
 import '../../models/intervention.dart';
 import '../../providers/auth_provider.dart';
 import '../../screens/fiche_adc_screen.dart';
-import '../../screens/intervention_rapport_screen.dart';
+import '../../screens/intervention_detail_screen.dart';
 import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
-import '../../utils/intervention_technician_actions.dart';
 import '../../utils/technician_view.dart';
 import '../../widgets/entity_scope_selector.dart';
 import 'intervention_create_sheet.dart';
@@ -38,7 +37,6 @@ class _InterventionsListTabState extends State<InterventionsListTab>
   List<Intervention> _rows = [];
   String _search = '';
   String _monthKey = currentMonthIso();
-  String? _actionBusyId;
 
   @override
   void initState() {
@@ -127,54 +125,13 @@ class _InterventionsListTabState extends State<InterventionsListTab>
     }).toList();
   }
 
-  void _openIntervention(Intervention i) {
-    showInterventionsDetailSheet(
-      context: context,
-      title: 'Intervention',
-      children: interventionDetailRows(i),
+  Future<void> _openIntervention(Intervention i) async {
+    final changed = await openInterventionDetail(
+      context,
+      intervention: i,
+      technicianFieldView: widget.technicianFieldView,
     );
-  }
-
-  Future<void> _onTechnicianAction(
-    Intervention i,
-    TechnicianInterventionAction action,
-  ) async {
-    if (action == TechnicianInterventionAction.none) return;
-    if (action == TechnicianInterventionAction.creerRapport) {
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => InterventionRapportScreen(
-            interventionId: i.id,
-            interventionSummary: i,
-          ),
-        ),
-      );
-      if (mounted) _reload();
-      return;
-    }
-
-    setState(() => _actionBusyId = i.id);
-    try {
-      final api = context.read<AuthProvider>().api;
-      final updated = await api.updateIntervention(i.id, {'etat': 'Démarré'});
-      if (!mounted) return;
-      setState(() {
-        _rows = _rows.map((r) => r.id == i.id ? updated : r).toList();
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Intervention démarrée')),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _actionBusyId = null);
-    }
+    if (changed == true && mounted) await _reload();
   }
 
   Future<void> _openCreate() async {
@@ -192,10 +149,11 @@ class _InterventionsListTabState extends State<InterventionsListTab>
 
     final rows = _filtered;
     return RefreshIndicator(
+      color: InterventionsUi.accent,
       onRefresh: _reload,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,8 +162,8 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                 child: InterventionsSectionHeader(
                   title: 'Mes interventions',
                   subtitle: widget.technicianFieldView
-                      ? 'Vos interventions assignées — détail au toucher'
-                      : 'Interventions terrain — aligné CRM web',
+                      ? 'Vos missions du mois'
+                      : 'Suivi terrain du mois',
                 ),
               ),
               if (!widget.technicianFieldView)
@@ -220,35 +178,18 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _shiftMonth(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
-              Expanded(
-                child: Text(
-                  monthLabelFr(_monthKey),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              IconButton(
-                onPressed: () => _shiftMonth(1),
-                icon: const Icon(Icons.chevron_right_rounded),
-              ),
-            ],
+          const SizedBox(height: 16),
+          InterventionsMonthNavigator(
+            label: monthLabelFr(_monthKey),
+            onPrevious: () => _shiftMonth(-1),
+            onNext: () => _shiftMonth(1),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher client, réf., type…',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
+          const SizedBox(height: 14),
+          InterventionsSearchField(
+            hintText: 'Rechercher client, réf., type…',
             onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (rows.isEmpty)
             InterventionsEmptyState(
               title: 'Aucune intervention',
@@ -258,57 +199,16 @@ class _InterventionsListTabState extends State<InterventionsListTab>
             )
           else
             ...rows.map(
-              (i) {
-                final action = widget.technicianFieldView
-                    ? technicianInterventionAction(i.etat)
-                    : TechnicianInterventionAction.none;
-                final actionLabel =
-                    technicianInterventionActionLabel(action);
-                final busy = _actionBusyId == i.id;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      InterventionsListCard(
-                        title: i.titreAffiche,
-                        subtitle:
-                            '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
-                        trailingWidget: InterventionEtatBadge(etat: i.etat),
-                        onTap: () => _openIntervention(i),
-                      ),
-                      if (action != TechnicianInterventionAction.none) ...[
-                        const SizedBox(height: 8),
-                        FilledButton(
-                          onPressed: busy
-                              ? null
-                              : () => _onTechnicianAction(i, action),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: action ==
-                                    TechnicianInterventionAction.creerRapport
-                                ? InterventionsUi.gradientStart
-                                : const Color(0xFF18181B),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: busy
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(actionLabel),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: InterventionsListCard(
+                  title: i.titreAffiche,
+                  subtitle:
+                      '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
+                  trailingWidget: InterventionEtatBadge(etat: i.etat),
+                  onTap: () => _openIntervention(i),
+                ),
+              ),
             ),
           const SizedBox(height: 24),
         ],
@@ -419,12 +319,13 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     return map;
   }
 
-  void _showDetail(Intervention i) {
-    showInterventionsDetailSheet(
-      context: context,
-      title: i.titreAffiche,
-      children: interventionDetailRows(i),
+  Future<void> _showDetail(Intervention i) async {
+    final changed = await openInterventionDetail(
+      context,
+      intervention: i,
+      technicianFieldView: widget.technicianFieldView,
     );
+    if (changed == true && mounted) await _reload();
   }
 
   @override
@@ -444,40 +345,29 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     final dayItems = selected != null ? (byDay[selected] ?? []) : <Intervention>[];
 
     return RefreshIndicator(
+      color: InterventionsUi.accent,
       onRefresh: _reload,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           const InterventionsSectionHeader(
             title: 'Mon calendrier',
-            subtitle: 'Planning des interventions du mois',
+            subtitle: 'Planning doux du mois',
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _shiftMonth(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
-              Expanded(
-                child: Text(
-                  monthLabelFr(_monthKey),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              IconButton(
-                onPressed: () => _shiftMonth(1),
-                icon: const Icon(Icons.chevron_right_rounded),
-              ),
-            ],
+          const SizedBox(height: 16),
+          InterventionsMonthNavigator(
+            label: monthLabelFr(_monthKey),
+            onPrevious: () => _shiftMonth(-1),
+            onNext: () => _shiftMonth(1),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           GridView.count(
             crossAxisCount: 7,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 4,
             children: [
               for (final label in ['L', 'M', 'M', 'J', 'V', 'S', 'D'])
                 Center(
@@ -555,11 +445,14 @@ class _CalendarDayCell extends StatelessWidget {
           margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(
             color: selected
-                ? InterventionsUi.accent.withValues(alpha: 0.15)
-                : null,
-            borderRadius: BorderRadius.circular(8),
+                ? InterventionsUi.accent.withValues(alpha: 0.14)
+                : (count > 0 ? InterventionsUi.accentMuted : null),
+            borderRadius: BorderRadius.circular(14),
             border: selected
-                ? Border.all(color: InterventionsUi.gradientStart)
+                ? Border.all(
+                    color: InterventionsUi.accent.withValues(alpha: 0.45),
+                    width: 1.5,
+                  )
                 : null,
           ),
           child: Column(
@@ -570,7 +463,7 @@ class _CalendarDayCell extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: selected
-                      ? InterventionsUi.gradientStart
+                      ? InterventionsUi.accent
                       : AromaColors.zinc900,
                 ),
               ),
@@ -580,8 +473,8 @@ class _CalendarDayCell extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
-                    color: InterventionsUi.gradientStart,
-                    borderRadius: BorderRadius.circular(8),
+                    color: InterventionsUi.accent,
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     '$count',
@@ -676,24 +569,22 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
 
     final rows = _filtered;
     return RefreshIndicator(
+      color: InterventionsUi.accent,
       onRefresh: _reload,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           const InterventionsSectionHeader(
             title: 'Mes appels de courtoisie (ADC)',
-            subtitle: 'Suivi des contacts clients après intervention',
+            subtitle: 'Contacts clients après intervention',
           ),
-          const SizedBox(height: 12),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher client, site, statut…',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
+          const SizedBox(height: 14),
+          InterventionsSearchField(
+            hintText: 'Rechercher client, site, statut…',
             onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (rows.isEmpty)
             const InterventionsEmptyState(
               title: 'Aucun ADC',
@@ -791,24 +682,22 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
 
     final rows = _filtered;
     return RefreshIndicator(
+      color: InterventionsUi.accent,
       onRefresh: _reload,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           const InterventionsSectionHeader(
             title: 'Mon transport',
             subtitle: 'Fiches de déplacement terrain',
           ),
-          const SizedBox(height: 12),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher ville, raison…',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
+          const SizedBox(height: 14),
+          InterventionsSearchField(
+            hintText: 'Rechercher ville, raison…',
             onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (rows.isEmpty)
             const InterventionsEmptyState(
               title: 'Aucune fiche transport',
@@ -940,10 +829,11 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
 
     final rows = _filtered;
     return RefreshIndicator(
+      color: InterventionsUi.accent,
       onRefresh: _reload,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -951,7 +841,7 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
               const Expanded(
                 child: InterventionsSectionHeader(
                   title: 'Mes réparations',
-                  subtitle: 'Suivi des équipements en réparation',
+                  subtitle: 'Équipements en dépannage',
                 ),
               ),
               FilledButton.icon(
@@ -965,15 +855,12 @@ class _InterventionsReparationsTabState extends State<InterventionsReparationsTa
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher client, réf., statut…',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
+          const SizedBox(height: 14),
+          InterventionsSearchField(
+            hintText: 'Rechercher client, réf., statut…',
             onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (rows.isEmpty)
             const InterventionsEmptyState(
               title: 'Aucune réparation',
@@ -1116,45 +1003,32 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
 
     final clients = _filteredClients;
     return RefreshIndicator(
+      color: InterventionsUi.accent,
       onRefresh: _reload,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
           const InterventionsSectionHeader(
             title: "Mes rapports d'interactions",
-            subtitle: 'Synthèse mensuelle par client — aligné CRM web',
+            subtitle: 'Synthèse mensuelle par client',
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _shiftMonth(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
-              Expanded(
-                child: Text(
-                  _summary?.moisLabel.isNotEmpty == true
-                      ? _summary!.moisLabel
-                      : monthLabelFr(_monthKey),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              IconButton(
-                onPressed: () => _shiftMonth(1),
-                icon: const Icon(Icons.chevron_right_rounded),
-              ),
-            ],
+          const SizedBox(height: 16),
+          InterventionsMonthNavigator(
+            label: _summary?.moisLabel.isNotEmpty == true
+                ? _summary!.moisLabel
+                : monthLabelFr(_monthKey),
+            onPrevious: () => _shiftMonth(-1),
+            onNext: () => _shiftMonth(1),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: _StatBox(
                   label: 'Interventions',
                   value: '$_totalInterventions',
-                  color: InterventionsUi.gradientStart,
+                  color: InterventionsUi.accent,
                 ),
               ),
               const SizedBox(width: 8),
@@ -1176,14 +1050,11 @@ class _InterventionsRapportsTabState extends State<InterventionsRapportsTab>
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Rechercher un client…',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
+          InterventionsSearchField(
+            hintText: 'Rechercher un client…',
             onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           if (clients.isEmpty)
             const InterventionsEmptyState(
               title: 'Aucun rapport pour ce mois',
@@ -1265,11 +1136,9 @@ class _StatBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AromaColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AromaColors.zinc200),
+      padding: const EdgeInsets.all(16),
+      decoration: InterventionsUi.softCardDecoration(
+        borderColor: color.withValues(alpha: 0.15),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1277,15 +1146,20 @@ class _StatBox extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AromaColors.zinc500),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AromaColors.zinc500,
+            ),
           ),
         ],
       ),

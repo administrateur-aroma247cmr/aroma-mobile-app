@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
-import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/technician_view.dart';
 import '../widgets/entity_scope_selector.dart';
@@ -75,54 +74,65 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
         tabs.any((t) => t.id == _currentTab) ? _currentTab : tabs.first.id;
 
     return Scaffold(
-      backgroundColor: AromaColors.canvas,
+      backgroundColor: InterventionsUi.canvasSoft,
       body: SafeArea(
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!widget.embedded)
-              _InterventionsHeader(
+              _InterventionsHeroHeader(
                 subtitle: technicianView
-                    ? 'Interventions terrain · $moisLabel'
-                    : 'Interventions · $moisLabel',
+                    ? 'Terrain · $moisLabel'
+                    : 'Planning · $moisLabel',
               ),
-            if (!widget.embedded) const SizedBox(height: 8),
+            const SizedBox(height: 14),
             InterventionsTabPills(
               tabs: tabs,
               selected: selectedTab,
               onSelected: _selectTab,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Expanded(
-              child: switch (selectedTab) {
-                'calendrier' => InterventionsCalendarTab(
-                    key: ValueKey(
-                      'calendrier-${auth.currentEntityCode}-$technicianView',
-                    ),
-                    technicianFieldView: technicianView,
-                  ),
-                'adc' => InterventionsAdcTab(
-                    key: ValueKey('adc-${auth.currentEntityCode}'),
-                  ),
-                'transport' => InterventionsTransportTab(
-                    key: ValueKey('transport-${auth.currentEntityCode}'),
-                  ),
-                'reparations' => InterventionsReparationsTab(
-                    key: ValueKey(
-                      'reparations-${auth.currentEntityCode}-$technicianView',
-                    ),
-                    technicianFieldView: technicianView,
-                  ),
-                'rapports' => InterventionsRapportsTab(
-                    key: ValueKey('rapports-${auth.currentEntityCode}'),
-                  ),
-                _ => InterventionsListTab(
-                    key: ValueKey(
-                      'interventions-${auth.currentEntityCode}-$technicianView',
-                    ),
-                    technicianFieldView: technicianView,
-                  ),
-              },
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: InterventionsUi.canvasSoft,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(28)),
+                  child: switch (selectedTab) {
+                    'calendrier' => InterventionsCalendarTab(
+                        key: ValueKey(
+                          'calendrier-${auth.currentEntityCode}-$technicianView',
+                        ),
+                        technicianFieldView: technicianView,
+                      ),
+                    'adc' => InterventionsAdcTab(
+                        key: ValueKey('adc-${auth.currentEntityCode}'),
+                      ),
+                    'transport' => InterventionsTransportTab(
+                        key: ValueKey('transport-${auth.currentEntityCode}'),
+                      ),
+                    'reparations' => InterventionsReparationsTab(
+                        key: ValueKey(
+                          'reparations-${auth.currentEntityCode}-$technicianView',
+                        ),
+                        technicianFieldView: technicianView,
+                      ),
+                    'rapports' => InterventionsRapportsTab(
+                        key: ValueKey('rapports-${auth.currentEntityCode}'),
+                      ),
+                    _ => InterventionsListTab(
+                        key: ValueKey(
+                          'interventions-${auth.currentEntityCode}-$technicianView',
+                        ),
+                        technicianFieldView: technicianView,
+                      ),
+                  },
+                ),
+              ),
             ),
           ],
         ),
@@ -131,53 +141,71 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
   }
 }
 
-class _InterventionsHeader extends StatelessWidget {
-  const _InterventionsHeader({required this.subtitle});
+class _InterventionsHeroHeader extends StatelessWidget {
+  const _InterventionsHeroHeader({required this.subtitle});
 
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(18, 18, 14, 20),
+      decoration: BoxDecoration(
+        gradient: InterventionsUi.headerGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: InterventionsUi.accent.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              gradient: InterventionsUi.gradient,
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
             child: const Icon(
               Icons.build_circle_outlined,
               color: Colors.white,
-              size: 22,
+              size: 26,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Mes interventions',
+                  'Interventions',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: Colors.white,
+                        height: 1.1,
                       ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AromaColors.zinc500,
+                    color: Colors.white.withValues(alpha: 0.88),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          const EntityScopeAppBarAction(),
+          const EntityScopeAppBarAction(light: true),
         ],
       ),
     );
