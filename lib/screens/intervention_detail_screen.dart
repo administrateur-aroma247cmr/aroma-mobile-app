@@ -7,7 +7,6 @@ import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_technician_actions.dart';
 import '../widgets/interventions/interventions_ui.dart';
-import 'intervention_rapport_screen.dart';
 
 class InterventionDetailScreen extends StatefulWidget {
   const InterventionDetailScreen({
@@ -64,22 +63,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
 
   Future<void> _onTechnicianAction(TechnicianInterventionAction action) async {
     final i = _intervention;
-    if (i == null || action == TechnicianInterventionAction.none) return;
-
-    if (action == TechnicianInterventionAction.creerRapport) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => InterventionRapportScreen(
-            interventionId: i.id,
-            interventionSummary: i,
-          ),
-        ),
-      );
-      if (!mounted) return;
-      _changed = true;
-      await _load();
-      return;
-    }
+    if (i == null || action != TechnicianInterventionAction.demarrer) return;
 
     setState(() => _actionBusy = true);
     try {
@@ -124,21 +108,16 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     );
   }
 
-  Widget _buildActionButton(TechnicianInterventionAction action) {
-    final isReport = action == TechnicianInterventionAction.creerRapport;
+  Widget _buildActionButton() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: InterventionsUi.softCardDecoration(
-        borderColor: isReport
-            ? InterventionsUi.accent.withValues(alpha: 0.25)
-            : AromaColors.zinc200,
-      ),
+      decoration: InterventionsUi.softCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            isReport ? 'Rapport terrain' : 'Prise en charge',
-            style: const TextStyle(
+          const Text(
+            'Prise en charge',
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AromaColors.zinc500,
@@ -146,8 +125,10 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
           ),
           const SizedBox(height: 10),
           FilledButton(
-            onPressed: _actionBusy ? null : () => _onTechnicianAction(action),
-            style: InterventionsUi.technicianActionStyle(isReportAction: isReport),
+            onPressed: _actionBusy
+                ? null
+                : () => _onTechnicianAction(TechnicianInterventionAction.demarrer),
+            style: InterventionsUi.technicianActionStyle(isReportAction: false),
             child: _actionBusy
                 ? const SizedBox(
                     width: 22,
@@ -157,9 +138,9 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
                       color: Colors.white,
                     ),
                   )
-                : Text(
-                    technicianInterventionActionLabel(action),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                : const Text(
+                    'Démarrer',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
           ),
         ],
@@ -176,10 +157,9 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     }
 
     final i = _intervention!;
-    final action = widget.technicianFieldView
-        ? technicianInterventionAction(i.etat)
-        : TechnicianInterventionAction.none;
-    final showAction = action != TechnicianInterventionAction.none;
+    final showAction = widget.technicianFieldView &&
+        technicianInterventionAction(i.etat) ==
+            TechnicianInterventionAction.demarrer;
 
     return RefreshIndicator(
       color: InterventionsUi.accent,
@@ -191,7 +171,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
           _HeroCard(intervention: i),
           if (showAction) ...[
             const SizedBox(height: 14),
-            _buildActionButton(action),
+            _buildActionButton(),
           ],
           const SizedBox(height: 16),
           _InfoSection(

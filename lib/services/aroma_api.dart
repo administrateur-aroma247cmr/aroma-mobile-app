@@ -1639,6 +1639,23 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
+  Future<TransportIntervention> createTransport(Map<String, dynamic> body) async {
+    final res = await _client.post(
+      _uri('/api/transports'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return TransportIntervention.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+    }
+    throw _errorFromResponse(res);
+  }
+
   Future<ReparationsListResult> listReparations({
     String? search,
     String? statut,

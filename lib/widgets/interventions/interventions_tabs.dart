@@ -13,6 +13,7 @@ import '../../widgets/entity_scope_selector.dart';
 import 'intervention_create_sheet.dart';
 import 'interventions_ui.dart';
 import '../../screens/reparation_create_screen.dart';
+import '../../screens/transport_create_screen.dart';
 import 'transport_detail_sheet.dart';
 
 // ─── Mes interventions ─────────────────────────────────────────────────────────
@@ -616,7 +617,12 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
 // ─── Transport ─────────────────────────────────────────────────────────────────
 
 class InterventionsTransportTab extends StatefulWidget {
-  const InterventionsTransportTab({super.key});
+  const InterventionsTransportTab({
+    super.key,
+    this.technicianFieldView = false,
+  });
+
+  final bool technicianFieldView;
 
   @override
   State<InterventionsTransportTab> createState() =>
@@ -642,8 +648,15 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
       _error = null;
     });
     try {
-      final api = context.read<AuthProvider>().api;
-      final rows = await api.listTransports();
+      final auth = context.read<AuthProvider>();
+      final api = auth.api;
+      var rows = await api.listTransports();
+      if (widget.technicianFieldView) {
+        final ctx = await buildTechnicianMatchContext(auth);
+        rows = rows
+            .where((t) => isTransportAssignedToTechnician(t, ctx))
+            .toList();
+      }
       if (!mounted) return;
       setState(() {
         _rows = rows;
@@ -672,6 +685,15 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
     showTransportDetailSheet(context, t);
   }
 
+  Future<void> _openCreate() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => const TransportCreateScreen(),
+      ),
+    );
+    if (created == true && mounted) await _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     watchEntityScope(_reload);
@@ -688,9 +710,27 @@ class _InterventionsTransportTabState extends State<InterventionsTransportTab>
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
-          const InterventionsSectionHeader(
-            title: 'Mon transport',
-            subtitle: 'Fiches de déplacement terrain',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: InterventionsSectionHeader(
+                  title: 'Mon transport',
+                  subtitle: 'Fiches de déplacement terrain',
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: _openCreate,
+                style: InterventionsUi.compactActionStyle(
+                  backgroundColor: const Color(0xFF0891B2),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text(
+                  'Nouvelle',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           InterventionsSearchField(

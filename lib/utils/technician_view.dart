@@ -120,3 +120,17 @@ bool isReparationAssignedToTechnician(
   }
   return false;
 }
+
+bool isTransportAssignedToTechnician(
+  TransportIntervention transport,
+  TechnicianMatchContext ctx,
+) {
+  final techNom = _normName(transport.technicienNom);
+  if (techNom.isEmpty || ctx.nameVariants.isEmpty) return false;
+  for (final variant in ctx.nameVariants) {
+    if (variant.isEmpty) continue;
+    if (techNom == variant) return true;
+    if (techNom.contains(variant) || variant.contains(techNom)) return true;
+  }
+  return false;
+}

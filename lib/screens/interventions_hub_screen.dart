@@ -53,7 +53,12 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
     ),
   ];
 
-  static const _technicianTabIds = {'interventions', 'calendrier', 'reparations'};
+  static const _technicianTabIds = {
+    'interventions',
+    'calendrier',
+    'transport',
+    'reparations',
+  };
 
   void _selectTab(String tab) {
     setState(() => _currentTab = tab);
@@ -113,7 +118,10 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                         key: ValueKey('adc-${auth.currentEntityCode}'),
                       ),
                     'transport' => InterventionsTransportTab(
-                        key: ValueKey('transport-${auth.currentEntityCode}'),
+                        key: ValueKey(
+                          'transport-${auth.currentEntityCode}-$technicianView',
+                        ),
+                        technicianFieldView: technicianView,
                       ),
                     'reparations' => InterventionsReparationsTab(
                         key: ValueKey(
