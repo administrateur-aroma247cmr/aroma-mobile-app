@@ -124,49 +124,6 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     );
   }
 
-  Widget _buildActionButton(TechnicianInterventionAction action) {
-    final isReport = action == TechnicianInterventionAction.creerRapport;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: InterventionsUi.softCardDecoration(
-        borderColor: isReport
-            ? InterventionsUi.accent.withValues(alpha: 0.25)
-            : AromaColors.zinc200,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            isReport ? 'Rapport terrain' : 'Prise en charge',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AromaColors.zinc500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          FilledButton(
-            onPressed: _actionBusy ? null : () => _onTechnicianAction(action),
-            style: InterventionsUi.technicianActionStyle(isReportAction: isReport),
-            child: _actionBusy
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(
-                    technicianInterventionActionLabel(action),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBody() {
     if (_loading && _intervention == null) {
       return const Center(child: CircularProgressIndicator());
@@ -179,7 +136,6 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     final action = widget.technicianFieldView
         ? technicianInterventionAction(i.etat)
         : TechnicianInterventionAction.none;
-    final showAction = action != TechnicianInterventionAction.none;
     final displayEtat = widget.technicianFieldView
         ? interventionEtatForTechnicianDisplay(i.etat)
         : i.etat;
@@ -194,11 +150,10 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
           _HeroCard(
             intervention: i,
             technicianFieldView: widget.technicianFieldView,
+            action: action,
+            actionBusy: _actionBusy,
+            onAction: _onTechnicianAction,
           ),
-          if (showAction) ...[
-            const SizedBox(height: 14),
-            _buildActionButton(action),
-          ],
           const SizedBox(height: 16),
           _InfoSection(
             title: 'Client & site',
@@ -246,13 +201,23 @@ class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.intervention,
     this.technicianFieldView = false,
+    this.action = TechnicianInterventionAction.none,
+    this.actionBusy = false,
+    this.onAction,
   });
 
   final Intervention intervention;
   final bool technicianFieldView;
+  final TechnicianInterventionAction action;
+  final bool actionBusy;
+  final ValueChanged<TechnicianInterventionAction>? onAction;
 
   @override
   Widget build(BuildContext context) {
+    final showAction =
+        technicianFieldView && action != TechnicianInterventionAction.none;
+    final isReport = action == TechnicianInterventionAction.creerRapport;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -267,7 +232,7 @@ class _HeroCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,8 +298,61 @@ class _HeroCard extends StatelessWidget {
                   icon: Icons.category_outlined,
                   label: intervention.typeIntervention!,
                 ),
+              if (intervention.siteAffiche.isNotEmpty)
+                _HeroChip(
+                  icon: Icons.place_outlined,
+                  label: intervention.siteAffiche,
+                ),
             ],
           ),
+          if (showAction) ...[
+            const SizedBox(height: 18),
+            Text(
+              isReport ? 'Rapport terrain' : 'Prise en charge',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.82),
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: actionBusy || onAction == null
+                  ? null
+                  : () => onAction!(action),
+              style: FilledButton.styleFrom(
+                backgroundColor:
+                    isReport ? Colors.white : const Color(0xFF18181B),
+                foregroundColor:
+                    isReport ? InterventionsUi.accent : Colors.white,
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.5),
+                disabledForegroundColor: InterventionsUi.accent.withValues(
+                  alpha: 0.5,
+                ),
+                minimumSize: const Size.fromHeight(48),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: actionBusy
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: isReport
+                            ? InterventionsUi.accent
+                            : Colors.white,
+                      ),
+                    )
+                  : Text(
+                      technicianInterventionActionLabel(action),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+            ),
+          ],
         ],
       ),
     );
