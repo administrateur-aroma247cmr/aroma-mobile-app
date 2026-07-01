@@ -154,7 +154,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
             actionBusy: _actionBusy,
             onAction: _onTechnicianAction,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _InfoSection(
             title: 'Client & site',
             icon: Icons.business_outlined,
@@ -164,7 +164,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
               _InfoRow('Ville', i.ville ?? '—'),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _InfoSection(
             title: 'Intervention',
             icon: Icons.build_outlined,
@@ -182,7 +182,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
             ],
           ),
           if ((i.description ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _InfoSection(
               title: 'Description',
               icon: Icons.notes_outlined,
@@ -219,15 +219,15 @@ class _HeroCard extends StatelessWidget {
     final isReport = action == TechnicianInterventionAction.creerRapport;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: InterventionsUi.headerGradient,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: InterventionsUi.accent.withValues(alpha: 0.22),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: InterventionsUi.accent.withValues(alpha: 0.16),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -238,19 +238,19 @@ class _HeroCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(11),
                 ),
                 child: const Icon(
                   Icons.build_circle_outlined,
                   color: Colors.white,
-                  size: 26,
+                  size: 20,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,24 +259,25 @@ class _HeroCard extends StatelessWidget {
                       intervention.titreAffiche,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
                         height: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 3),
                     Text(
                       intervention.clientNom ?? '—',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.88),
-                        fontSize: 14,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               InterventionEtatBadge(
                 etat: technicianFieldView
                     ? interventionEtatForTechnicianDisplay(intervention.etat)
@@ -284,10 +285,10 @@ class _HeroCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             children: [
               _HeroChip(
                 icon: Icons.calendar_today_outlined,
@@ -306,17 +307,7 @@ class _HeroCard extends StatelessWidget {
             ],
           ),
           if (showAction) ...[
-            const SizedBox(height: 18),
-            Text(
-              isReport ? 'Rapport terrain' : 'Prise en charge',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.82),
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             FilledButton(
               onPressed: actionBusy || onAction == null
                   ? null
@@ -330,16 +321,22 @@ class _HeroCard extends StatelessWidget {
                 disabledForegroundColor: InterventionsUi.accent.withValues(
                   alpha: 0.5,
                 ),
-                minimumSize: const Size.fromHeight(48),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 elevation: 0,
+                textStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: actionBusy
                   ? SizedBox(
-                      width: 22,
-                      height: 22,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: isReport
@@ -347,10 +344,7 @@ class _HeroCard extends StatelessWidget {
                             : Colors.white,
                       ),
                     )
-                  : Text(
-                      technicianInterventionActionLabel(action),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                  : Text(technicianInterventionActionLabel(action)),
             ),
           ],
         ],
@@ -368,7 +362,7 @@ class _HeroChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
@@ -377,13 +371,13 @@ class _HeroChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.white),
-          const SizedBox(width: 6),
+          Icon(icon, size: 11, color: Colors.white),
+          const SizedBox(width: 4),
           Text(
             label,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -407,19 +401,19 @@ class _InfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: InterventionsUi.softCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: InterventionsUi.accent),
-              const SizedBox(width: 8),
+              Icon(icon, size: 16, color: InterventionsUi.accent),
+              const SizedBox(width: 6),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.2,
                   color: AromaColors.zinc900,
@@ -427,10 +421,10 @@ class _InfoSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           ...rows.map(
             (row) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 8),
               child: row,
             ),
           ),
@@ -459,8 +453,8 @@ class _InfoRow extends StatelessWidget {
       return Text(
         value,
         style: const TextStyle(
-          fontSize: 14,
-          height: 1.45,
+          fontSize: 13,
+          height: 1.4,
           color: AromaColors.zinc800,
         ),
       );
@@ -469,11 +463,11 @@ class _InfoRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 108,
+          width: 96,
           child: Text(
             label,
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               color: AromaColors.zinc500,
               fontWeight: FontWeight.w500,
             ),
@@ -484,10 +478,10 @@ class _InfoRow extends StatelessWidget {
               Text(
                 value,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AromaColors.zinc900,
-                  height: 1.35,
+                  height: 1.3,
                 ),
               ),
         ),
