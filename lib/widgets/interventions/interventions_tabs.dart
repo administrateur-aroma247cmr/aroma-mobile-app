@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import '../../models/intervention.dart';
 import '../../providers/auth_provider.dart';
 import '../../screens/fiche_adc_screen.dart';
+import '../../screens/intervention_create_screen.dart';
 import '../../screens/intervention_detail_screen.dart';
 import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/format_utils.dart';
 import '../../utils/technician_view.dart';
 import '../../widgets/entity_scope_selector.dart';
-import 'intervention_create_sheet.dart';
 import 'interventions_ui.dart';
 import '../../screens/reparation_create_screen.dart';
 import '../../screens/transport_create_screen.dart';
@@ -136,7 +136,11 @@ class _InterventionsListTabState extends State<InterventionsListTab>
   }
 
   Future<void> _openCreate() async {
-    final created = await showInterventionCreateSheet(context);
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => const InterventionCreateScreen(),
+      ),
+    );
     if (created == true && mounted) await _reload();
   }
 
