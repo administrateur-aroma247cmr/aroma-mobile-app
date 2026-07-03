@@ -470,23 +470,19 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   }
 
   String? _primaryRessentiTechnicien(InterventionRapportDraft draft) {
-    for (final l in draft.lieux) {
-      final v = (l.ressentiDepartTechnicien ?? '').trim();
-      if (v.isNotEmpty) return v;
-    }
-    for (final l in draft.lieux) {
-      final v = (l.ressentiArriveeTechnicien ?? '').trim();
-      if (v.isNotEmpty) return v;
-    }
-    return null;
+    return averageRessentiScale(
+      draft.lieux.map((l) {
+        final depart = (l.ressentiDepartTechnicien ?? '').trim();
+        if (depart.isNotEmpty) return depart;
+        return l.ressentiArriveeTechnicien;
+      }),
+    );
   }
 
   String? _primaryRessentiClient(InterventionRapportDraft draft) {
-    for (final l in draft.lieux) {
-      final v = (l.ressentiClient ?? '').trim();
-      if (v.isNotEmpty) return v;
-    }
-    return null;
+    return averageRessentiScale(
+      draft.lieux.map((l) => l.ressentiClient),
+    );
   }
 
   Future<String?> _persistContactAccompagnant(
@@ -582,12 +578,12 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       intervention,
       draft.contactAccompagnant,
     );
+    final ressentiClient = _primaryRessentiClient(draft);
+    final ressentiTechnicien = _primaryRessentiTechnicien(draft);
     final body = <String, dynamic>{
       if (contactId != null) 'id_contact': contactId,
-      if (_primaryRessentiClient(draft) != null)
-        'ressenti_client': _primaryRessentiClient(draft),
-      if (_primaryRessentiTechnicien(draft) != null)
-        'ressenti_technicien': _primaryRessentiTechnicien(draft),
+      if (ressentiClient != null) 'ressenti_client': ressentiClient,
+      if (ressentiTechnicien != null) 'ressenti_technicien': ressentiTechnicien,
     };
     final retour = _buildRetourInterventionText(draft).trim();
     if (retour.isNotEmpty) {

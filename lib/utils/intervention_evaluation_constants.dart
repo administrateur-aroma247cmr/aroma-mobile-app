@@ -77,6 +77,20 @@ String ressentiInterventionLabel(String? raw) {
   return v;
 }
 
+/// Moyenne arrondie des notes 0–10 envoyées à l’API (`ressenti_*`).
+String? averageRessentiScale(Iterable<String?> values) {
+  final nums = <int>[];
+  for (final raw in values) {
+    final v = (raw ?? '').trim();
+    if (v.isEmpty) continue;
+    final n = int.tryParse(v);
+    if (n != null && n >= 0 && n <= 10) nums.add(n);
+  }
+  if (nums.isEmpty) return null;
+  final avg = nums.reduce((a, b) => a + b) / nums.length;
+  return avg.round().toString();
+}
+
 String buildDiffuseurEmplacementLabel({
   String? emplacement,
   String? typeDiffuseur,
