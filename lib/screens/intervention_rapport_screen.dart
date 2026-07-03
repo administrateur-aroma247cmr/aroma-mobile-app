@@ -452,6 +452,20 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         );
       }
     }
+    for (final d in draft.diffuseurs) {
+      if (!d.traite) continue;
+      final diffuseurLabel = d.label.trim().isNotEmpty ? d.label : 'Diffuseur';
+      for (final item in diffuseurCheckItems) {
+        final obs = (d.photos[item.key]?.observation ?? '').trim();
+        if (obs.isNotEmpty) {
+          blocks.add('[Photo — $diffuseurLabel — ${item.label}]\n$obs');
+        }
+      }
+    }
+    final techObs = (draft.technicienPhoto.observation ?? '').trim();
+    if (techObs.isNotEmpty) {
+      blocks.add('[Photo — Technicien]\n$techObs');
+    }
     return blocks.join('\n\n');
   }
 
@@ -526,24 +540,34 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       if (!d.traite) continue;
       final label = d.label.trim().isNotEmpty ? d.label : 'Diffuseur';
       final photos = <String, String>{};
+      final photosObservations = <String, String>{};
       for (final item in diffuseurCheckItems) {
-        final galerieId = (d.photos[item.key]?.galerieId ?? '').trim();
+        final slot = d.photos[item.key];
+        final galerieId = (slot?.galerieId ?? '').trim();
         if (galerieId.isEmpty) {
           throw StateError('$label : ${item.label} — photo non synchronisée');
         }
         photos[item.key] = galerieId;
+        final obs = (slot?.observation ?? '').trim();
+        if (obs.isNotEmpty) photosObservations[item.key] = obs;
       }
       diffuseurs.add({
         'equipement_id': d.equipementId,
         'label': label,
         'traite': true,
         'photos': photos,
+        if (photosObservations.isNotEmpty)
+          'photos_observations': photosObservations,
         if (d.values.isNotEmpty) 'values': d.values,
       });
     }
 
+    final techObservation = (draft.technicienPhoto.observation ?? '').trim();
+
     return {
       'technicien_photo_id': techId,
+      if (techObservation.isNotEmpty)
+        'technicien_photo_observation': techObservation,
       'diffuseurs': diffuseurs,
     };
   }
@@ -622,6 +646,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         return RapportPhotoSlot(
           galerieId: f.id,
           galerieUrl: f.lienFichier,
+          observation: slot.observation,
         );
       }
 

@@ -26,6 +26,7 @@ class InterventionRapportUploadService {
     return RapportPhotoSlot(
       galerieId: f.id,
       galerieUrl: f.lienFichier,
+      observation: slot.observation,
     );
   }
 

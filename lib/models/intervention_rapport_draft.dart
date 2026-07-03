@@ -4,27 +4,35 @@ class RapportPhotoSlot {
     this.localPath,
     this.galerieId,
     this.galerieUrl,
+    this.observation,
   });
 
   final String? localPath;
   final String? galerieId;
   final String? galerieUrl;
+  final String? observation;
 
   bool get hasPhoto =>
       (localPath != null && localPath!.isNotEmpty) ||
       (galerieId != null && galerieId!.isNotEmpty);
 
+  bool get hasObservation => (observation ?? '').trim().isNotEmpty;
+
   RapportPhotoSlot copyWith({
     String? localPath,
     String? galerieId,
     String? galerieUrl,
+    String? observation,
     bool clearLocal = false,
     bool clearGalerie = false,
+    bool clearObservation = false,
   }) {
     return RapportPhotoSlot(
       localPath: clearLocal ? null : (localPath ?? this.localPath),
       galerieId: clearGalerie ? null : (galerieId ?? this.galerieId),
       galerieUrl: clearGalerie ? null : (galerieUrl ?? this.galerieUrl),
+      observation:
+          clearObservation ? null : (observation ?? this.observation),
     );
   }
 
@@ -32,6 +40,7 @@ class RapportPhotoSlot {
         if (localPath != null) 'local_path': localPath,
         if (galerieId != null) 'galerie_id': galerieId,
         if (galerieUrl != null) 'galerie_url': galerieUrl,
+        if (hasObservation) 'observation': observation!.trim(),
       };
 
   factory RapportPhotoSlot.fromJson(Map<String, dynamic> m) {
@@ -41,6 +50,7 @@ class RapportPhotoSlot {
       localPath: str(m['local_path']),
       galerieId: str(m['galerie_id']),
       galerieUrl: str(m['galerie_url']),
+      observation: str(m['observation']),
     );
   }
 }
