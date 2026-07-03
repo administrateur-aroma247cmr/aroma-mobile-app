@@ -552,18 +552,21 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         'label': label,
         'traite': true,
         'photos': photos,
+        if ((d.lieuKey ?? '').trim().isNotEmpty) 'lieu_key': d.lieuKey!.trim(),
         if (photosObservations.isNotEmpty)
           'photos_observations': photosObservations,
         if (d.values.isNotEmpty) 'values': d.values,
       });
     }
 
+    final lieux = draft.lieux.map((l) => l.toJson()).toList();
     final techObservation = (draft.technicienPhoto.observation ?? '').trim();
 
     return {
       'technicien_photo_id': techId,
       if (techObservation.isNotEmpty)
         'technicien_photo_observation': techObservation,
+      if (lieux.isNotEmpty) 'lieux': lieux,
       'diffuseurs': diffuseurs,
     };
   }

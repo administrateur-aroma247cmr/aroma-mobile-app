@@ -5,8 +5,11 @@ import '../models/intervention.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/adc_exchange_history.dart';
+import '../utils/adc_form_logic.dart';
 import '../utils/format_utils.dart';
 import '../widgets/interventions/interventions_ui.dart';
+import '../widgets/modern_bottom_sheet.dart';
+import 'adc_relance_screen.dart';
 
 class FicheAdcScreen extends StatefulWidget {
   const FicheAdcScreen({
@@ -57,6 +60,19 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
     }
   }
 
+  String _agentLabel() {
+    final auth = context.read<AuthProvider>();
+    final me = auth.me;
+    if (me != null) {
+      final name = [
+        (me['prenom'] as String? ?? '').trim(),
+        (me['nom'] as String? ?? '').trim(),
+      ].where((p) => p.isNotEmpty).join(' ');
+      if (name.isNotEmpty) return name;
+    }
+    return auth.userEmail ?? '—';
+  }
+
   String _siteName(ExperienceAdcDetail d) {
     final fromApi = (d.siteName ?? '').trim();
     if (fromApi.isNotEmpty) return fromApi;
@@ -66,17 +82,7 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
   }
 
   String _datePlanifiee(ExperienceAdcDetail d) {
-    final raw = d.datePlanifiee ?? widget.fallbackDatePlanifiee;
-    return formatDateFr(raw);
-  }
-
-  String _interventionSubtitle(ExperienceAdcDetail d) {
-    final parts = <String>[];
-    if ((d.interventionRef ?? '').isNotEmpty) parts.add(d.interventionRef!);
-    if ((d.interventionDate ?? '').isNotEmpty) {
-      parts.add(formatDateFr(d.interventionDate));
-    }
-    return parts.join(' · ');
+    return formatDateFr(d.datePlanifiee ?? widget.fallbackDatePlanifiee);
   }
 
   List<AdcExchangeEntry> _exchangeHistory(ExperienceAdcDetail d) {
@@ -84,288 +90,598 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
       trace: d.actionsTrace,
       relanceTelephoneMessage: d.relanceTelephoneMessage,
       adcRessenti: d.ressenti,
+      agentFallback: _agentLabel(),
+    );
+  }
+
+  Future<void> _openRelance() async {
+    final d = _detail;
+    if (d == null) return;
+    if (isAdcStatutRepondu(d.statut)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cet ADC est déjà marqué comme répondu.'),
+        ),
+      );
+      return;
+    }
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => AdcRelanceScreen(
+          adcId: d.id,
+          initialDetail: d,
+          fallbackSiteName: widget.fallbackSiteName,
+          fallbackDatePlanifiee: widget.fallbackDatePlanifiee,
+        ),
+      ),
+    );
+    if (saved == true && mounted) await _reload();
+  }
+
+  void _showExchangeDetail(AdcExchangeEntry e) {
+    showModernDetailSheet(
+      context: context,
+      title: 'Détail de l’échange',
+      subtitle: '${e.dateAffiche} · ${e.moyen}',
+      theme: ModernSheetThemes.interventions,
+      children: [
+        _DetailLine('Agent', e.agent),
+        _DetailLine('Contact', e.contactLabel),
+        if ((e.ressenti ?? '').isNotEmpty) _DetailLine('Ressenti', e.ressenti!),
+        const SizedBox(height: 8),
+        const Text(
+          'Contenu',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AromaColors.zinc500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AromaColors.zinc100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AromaColors.zinc200),
+          ),
+          child: Text(
+            (e.notesAppel ?? e.resume).trim().isNotEmpty
+                ? (e.notesAppel ?? e.resume)
+                : '—',
+            style: const TextStyle(fontSize: 14, height: 1.45),
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final d = _detail;
+
     return Scaffold(
-      backgroundColor: AromaColors.canvas,
-      appBar: AppBar(
-        title: Text(_detail?.titreAffiche ?? 'Fiche ADC'),
-      ),
+      backgroundColor: InterventionsUi.canvasSoft,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? interventionsErrorState(message: _error!, onRetry: _reload)
-              : _detail == null
+              : d == null
                   ? const SizedBox.shrink()
                   : RefreshIndicator(
+                      color: InterventionsUi.accent,
                       onRefresh: _reload,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Text(
-                            'Fiche ADC — ${_detail!.clientName ?? '—'}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Site · ${_siteName(_detail!)}',
-                            style: const TextStyle(
-                              color: AromaColors.zinc500,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Date planifiée · ${_datePlanifiee(_detail!)}',
-                            style: const TextStyle(
-                              color: AromaColors.zinc500,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          if (_interventionSubtitle(_detail!).isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _interventionSubtitle(_detail!),
-                              style: const TextStyle(
-                                color: AromaColors.zinc500,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 20),
-                          _SectionCard(
-                            title: 'Informations',
-                            children: [
-                              InterventionsDetailRow(
-                                'Client',
-                                _detail!.clientName ?? '—',
-                              ),
-                              InterventionsDetailRow(
-                                'Site',
-                                _siteName(_detail!),
-                              ),
-                              InterventionsDetailRow(
-                                'Date planifiée',
-                                _datePlanifiee(_detail!),
-                              ),
-                              InterventionsDetailRow(
-                                'Date appel',
-                                formatDateFr(_detail!.dateAppel),
-                              ),
-                              InterventionsDetailRow(
-                                'Statut',
-                                '',
-                                valueWidget: AdcStatutBadge(statut: _detail!.statut),
-                              ),
-                              InterventionsDetailRow(
-                                'Ressenti',
-                                _detail!.ressenti ?? '—',
-                              ),
-                              if ((_detail!.commentaire ?? '').trim().isNotEmpty)
-                                InterventionsDetailRow(
-                                  'Observations',
-                                  _detail!.commentaire!.trim(),
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverAppBar(
+                            pinned: true,
+                            expandedHeight: 176,
+                            backgroundColor: InterventionsUi.gradientStart,
+                            foregroundColor: Colors.white,
+                            actions: [
+                              TextButton.icon(
+                                onPressed: _openRelance,
+                                icon: Icon(
+                                  Icons.add_ic_call_rounded,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
+                                label: const Text(
+                                  'Relance',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
                             ],
-                          ),
-                          const SizedBox(height: 12),
-                          _SectionCard(
-                            title: 'Contacts du site',
-                            subtitle:
-                                '${_detail!.contacts.length} contact(s)',
-                            children: _detail!.contacts.isEmpty
-                                ? [
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 8),
-                                      child: Text(
-                                        'Aucun contact enregistré.',
-                                        style: TextStyle(
-                                          color: AromaColors.zinc500,
-                                        ),
-                                      ),
+                            flexibleSpace: FlexibleSpaceBar(
+                              titlePadding: const EdgeInsets.only(
+                                left: 56,
+                                bottom: 16,
+                                right: 100,
+                              ),
+                              title: Text(
+                                d.clientName ?? 'Appel de courtoisie',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 17,
+                                ),
+                              ),
+                              background: Container(
+                                decoration: const BoxDecoration(
+                                  gradient: InterventionsUi.headerGradient,
+                                ),
+                                child: SafeArea(
+                                  bottom: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      56,
+                                      20,
+                                      52,
                                     ),
-                                  ]
-                                : _detail!.contacts
-                                    .map(
-                                      (c) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 10),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Site · ${_siteName(d)}',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.92),
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Row(
                                           children: [
+                                            AdcStatutBadge(statut: d.statut),
+                                            const SizedBox(width: 10),
                                             Text(
-                                              c.nomAffiche,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
+                                              'Planifié · ${_datePlanifiee(d)}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.9),
                                               ),
                                             ),
-                                            if ((c.poste ?? '').isNotEmpty)
-                                              Text(
-                                                c.poste!,
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: AromaColors.zinc500,
-                                                ),
-                                              ),
-                                            if ((c.telephone ?? '').isNotEmpty)
-                                              Text(
-                                                c.telephone!,
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            if ((c.email ?? '').isNotEmpty)
-                                              Text(
-                                                c.email!,
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                ),
-                                              ),
                                           ],
                                         ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _AdcSectionCard(
+                                  title: 'Informations',
+                                  icon: Icons.info_outline_rounded,
+                                  child: Column(
+                                    children: [
+                                      InterventionsDetailRow(
+                                        'Client',
+                                        d.clientName ?? '—',
                                       ),
-                                    )
-                                    .toList(),
+                                      InterventionsDetailRow(
+                                        'Site',
+                                        _siteName(d),
+                                      ),
+                                      InterventionsDetailRow(
+                                        'Date planifiée',
+                                        _datePlanifiee(d),
+                                      ),
+                                      InterventionsDetailRow(
+                                        'Date appel',
+                                        formatDateFr(d.dateAppel),
+                                      ),
+                                      InterventionsDetailRow(
+                                        'Statut',
+                                        '',
+                                        valueWidget:
+                                            AdcStatutBadge(statut: d.statut),
+                                      ),
+                                      InterventionsDetailRow(
+                                        'Ressenti',
+                                        d.ressenti ?? '—',
+                                      ),
+                                      if ((d.commentaire ?? '').trim().isNotEmpty)
+                                        InterventionsDetailRow(
+                                          'Observations',
+                                          d.commentaire!.trim(),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                _AdcSectionCard(
+                                  title: 'Contacts du site',
+                                  icon: Icons.people_outline_rounded,
+                                  subtitle: '${d.contacts.length} contact(s)',
+                                  child: d.contacts.isEmpty
+                                      ? const Text(
+                                          'Aucun contact enregistré.',
+                                          style: TextStyle(
+                                            color: AromaColors.zinc500,
+                                          ),
+                                        )
+                                      : Column(
+                                          children: [
+                                            for (var i = 0;
+                                                i < d.contacts.length;
+                                                i++) ...[
+                                              if (i > 0)
+                                                const Divider(height: 20),
+                                              _ContactTile(
+                                                contact: d.contacts[i],
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                ),
+                                const SizedBox(height: 12),
+                                _AdcSectionCard(
+                                  title: 'Historique des échanges',
+                                  icon: Icons.history_rounded,
+                                  subtitle:
+                                      '${_exchangeHistory(d).length} échange(s)',
+                                  child: _buildExchangeHistory(d),
+                                ),
+                                const SizedBox(height: 20),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: _openRelance,
+                                    icon: const Icon(Icons.add_ic_call_rounded),
+                                    label: const Text('Créer une relance'),
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(52),
+                                      backgroundColor: InterventionsUi.accent,
+                                    ),
+                                  ),
+                                ),
+                              ]),
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          _SectionCard(
-                            title: 'Historique des échanges',
-                            subtitle:
-                                '${_exchangeHistory(_detail!).length} échange(s)',
-                            children: _buildExchangeHistory(_detail!),
-                          ),
-                          const SizedBox(height: 32),
                         ],
                       ),
                     ),
     );
   }
 
-  List<Widget> _buildExchangeHistory(ExperienceAdcDetail d) {
+  Widget _buildExchangeHistory(ExperienceAdcDetail d) {
     final history = _exchangeHistory(d);
     if (history.isEmpty) {
-      return const [
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            'Aucun échange enregistré.',
-            style: TextStyle(color: AromaColors.zinc500),
-          ),
-        ),
-      ];
+      return const Text(
+        'Aucun échange enregistré.',
+        style: TextStyle(color: AromaColors.zinc500),
+      );
     }
 
-    return history
-        .map(
-          (e) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${e.dateAffiche} · ${e.moyen}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-                if (e.contactLabel != '—')
-                  Text(
-                    e.contactLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AromaColors.zinc500,
-                    ),
-                  ),
-                if (e.agent != '—')
-                  Text(
-                    'Par ${e.agent}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AromaColors.zinc500,
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                Text(e.resume),
-                if ((e.notesAppel ?? '').trim().isNotEmpty &&
-                    e.notesAppel != e.resume)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      e.notesAppel!.trim(),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AromaColors.zinc500,
-                      ),
-                    ),
-                  ),
-                if ((e.ressenti ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Ressenti : ${e.ressenti}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AromaColors.zinc500,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+    return Column(
+      children: [
+        for (var i = 0; i < history.length; i++)
+          _ExchangeTile(
+            entry: history[i],
+            isLast: i == history.length - 1,
+            onTap: () => _showExchangeDetail(history[i]),
           ),
-        )
-        .toList();
+      ],
+    );
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+class _AdcSectionCard extends StatelessWidget {
+  const _AdcSectionCard({
     required this.title,
-    required this.children,
+    required this.icon,
+    required this.child,
     this.subtitle,
   });
 
   final String title;
+  final IconData icon;
   final String? subtitle;
-  final List<Widget> children;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+    return Container(
+      decoration: InterventionsUi.softCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: InterventionsUi.accentMuted,
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Icon(icon, size: 20, color: InterventionsUi.accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: AromaColors.zinc900,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AromaColors.zinc500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
+          ),
+          const Divider(height: 1, color: AromaColors.zinc100),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactTile extends StatelessWidget {
+  const _ContactTile({required this.contact});
+
+  final AdcContact contact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: InterventionsUi.accentSoft,
+          child: Text(
+            contact.nomAffiche.isNotEmpty
+                ? contact.nomAffiche[0].toUpperCase()
+                : '?',
+            style: const TextStyle(
+              color: InterventionsUi.accent,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                subtitle!,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AromaColors.zinc500,
+                contact.nomAffiche,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if ((contact.poste ?? '').isNotEmpty)
+                Text(
+                  contact.poste!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AromaColors.zinc500,
+                  ),
+                ),
+              if ((contact.telephone ?? '').isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.phone_outlined, size: 14),
+                    const SizedBox(width: 4),
+                    Text(contact.telephone!, style: const TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ],
+              if ((contact.email ?? '').isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.mail_outline, size: 14),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        contact.email!,
+                        style: const TextStyle(fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExchangeTile extends StatelessWidget {
+  const _ExchangeTile({
+    required this.entry,
+    required this.isLast,
+    required this.onTap,
+  });
+
+  final AdcExchangeEntry entry;
+  final bool isLast;
+  final VoidCallback onTap;
+
+  Color get _moyenColor {
+    switch (entry.moyen) {
+      case 'WhatsApp':
+        return const Color(0xFF25D366);
+      case 'Téléphone':
+        return InterventionsUi.accent;
+      default:
+        return const Color(0xFF2563EB);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 24,
+            child: Column(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: _moyenColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(width: 2, color: AromaColors.zinc200),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AromaColors.zinc200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _moyenColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  entry.moyen,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: _moyenColor,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                entry.dateAffiche,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AromaColors.zinc500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            entry.resume,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: AromaColors.zinc800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.agent,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AromaColors.zinc500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ],
-            const SizedBox(height: 12),
-            ...children,
-          ],
-        ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AromaColors.zinc500),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1484,6 +1484,7 @@ class AromaApi {
     String? prenom,
     String? poste,
     String? telephone,
+    String? email,
     String typeContact = 'intervention',
   }) async {
     final body = <String, dynamic>{
@@ -1494,6 +1495,7 @@ class AromaApi {
       if (prenom != null && prenom.isNotEmpty) 'prenom': prenom,
       if (poste != null && poste.isNotEmpty) 'poste': poste,
       if (telephone != null && telephone.isNotEmpty) 'telephone': telephone,
+      if (email != null && email.isNotEmpty) 'email': email,
       'type_contact': typeContact,
     };
     final res = await _client.post(
@@ -1614,6 +1616,55 @@ class AromaApi {
       }
       throw ApiException('Réponse fiche ADC invalide.');
     }
+    throw _errorFromResponse(res);
+  }
+
+  Future<ExperienceAdcDetail> patchExperienceAdc(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _client.patch(
+      _uri('/api/experience-adc/${Uri.encodeComponent(id)}'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return ExperienceAdcDetail.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+      }
+      throw ApiException('Réponse mise à jour ADC invalide.');
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<void> sendCommunication({
+    required String message,
+    required String contact,
+    required String channel,
+    String? subject,
+    List<String>? cc,
+  }) async {
+    final uri = _uri('/api/communications');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers());
+    request.fields['message'] = message;
+    request.fields['contact'] = contact;
+    request.fields['channel'] = channel;
+    if (subject != null && subject.trim().isNotEmpty) {
+      request.fields['subject'] = subject.trim();
+    }
+    if (cc != null) {
+      for (final addr in cc) {
+        final v = addr.trim();
+        if (v.isNotEmpty) request.fields['cc'] = v;
+      }
+    }
+    final streamed = await _client.send(request);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) return;
     throw _errorFromResponse(res);
   }
 
