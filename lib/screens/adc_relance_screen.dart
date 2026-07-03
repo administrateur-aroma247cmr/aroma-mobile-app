@@ -7,6 +7,7 @@ import '../theme/aroma_theme.dart';
 import '../utils/adc_exchange_history.dart';
 import '../utils/adc_form_logic.dart';
 import '../utils/format_utils.dart';
+import '../utils/intervention_evaluation_constants.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/modern_bottom_sheet.dart';
 import '../widgets/modern_select_field.dart';
@@ -1140,6 +1141,8 @@ class _AddContactSheet extends StatefulWidget {
 }
 
 class _AddContactSheetState extends State<_AddContactSheet> {
+  String? _civilite;
+  final _prenomCtrl = TextEditingController();
   final _nomCtrl = TextEditingController();
   final _posteCtrl = TextEditingController();
   final _telCtrl = TextEditingController();
@@ -1149,6 +1152,7 @@ class _AddContactSheetState extends State<_AddContactSheet> {
 
   @override
   void dispose() {
+    _prenomCtrl.dispose();
     _nomCtrl.dispose();
     _posteCtrl.dispose();
     _telCtrl.dispose();
@@ -1169,6 +1173,10 @@ class _AddContactSheetState extends State<_AddContactSheet> {
       final created = await context.read<AuthProvider>().api.createContactClient(
             idTiers: widget.clientId,
             idAgence: widget.siteId,
+            civilite: _civilite,
+            prenom: _prenomCtrl.text.trim().isEmpty
+                ? null
+                : _prenomCtrl.text.trim(),
             nom: _nomCtrl.text.trim(),
             poste: _posteCtrl.text.trim().isEmpty ? null : _posteCtrl.text.trim(),
             telephone: _telCtrl.text.trim().isEmpty ? null : _telCtrl.text.trim(),
@@ -1208,11 +1216,44 @@ class _AddContactSheetState extends State<_AddContactSheet> {
                 theme: ModernSheetThemes.interventions,
               ),
               const SizedBox(height: 24),
-              _ContactField(
-                controller: _nomCtrl,
-                label: 'Nom *',
-                icon: Icons.person_outline_rounded,
-                textCapitalization: TextCapitalization.words,
+              ModernSelectField<String>(
+                label: 'Civilité',
+                hint: 'Choisir',
+                value: _civilite,
+                clearLabel: 'Non renseignée',
+                options: contactCiviliteOptions
+                    .where((v) => v.isNotEmpty)
+                    .map(
+                      (v) => ModernSelectOption(
+                        value: v,
+                        label: v,
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => _civilite = v),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _ContactField(
+                      controller: _prenomCtrl,
+                      label: 'Prénom',
+                      icon: Icons.badge_outlined,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ContactField(
+                      controller: _nomCtrl,
+                      label: 'Nom *',
+                      icon: Icons.person_outline_rounded,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
               _ContactField(

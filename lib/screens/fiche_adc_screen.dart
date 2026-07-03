@@ -165,6 +165,21 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
 
     return Scaffold(
       backgroundColor: InterventionsUi.canvasSoft,
+      appBar: AppBar(
+        backgroundColor: InterventionsUi.canvasSoft,
+        foregroundColor: AromaColors.zinc900,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text('Appel de courtoisie'),
+        actions: [
+          if (canRelance)
+            IconButton(
+              onPressed: _openRelance,
+              icon: const Icon(Icons.add_ic_call_rounded),
+              tooltip: 'Créer une relance',
+            ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -174,200 +189,85 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
                   : RefreshIndicator(
                       color: InterventionsUi.accent,
                       onRefresh: _reload,
-                      child: CustomScrollView(
+                      child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: [
-                          SliverAppBar(
-                            pinned: true,
-                            expandedHeight: 176,
-                            backgroundColor: InterventionsUi.gradientStart,
-                            foregroundColor: Colors.white,
-                            actions: [
-                              if (canRelance)
-                                TextButton.icon(
-                                  onPressed: _openRelance,
-                                  icon: Icon(
-                                    Icons.add_ic_call_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                  label: const Text(
-                                    'Relance',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(width: 4),
-                            ],
-                            flexibleSpace: FlexibleSpaceBar(
-                              titlePadding: const EdgeInsets.only(
-                                left: 56,
-                                bottom: 16,
-                                right: 100,
-                              ),
-                              title: Text(
-                                d.clientName ?? 'Appel de courtoisie',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 17,
-                                ),
-                              ),
-                              background: Container(
-                                decoration: const BoxDecoration(
-                                  gradient: InterventionsUi.headerGradient,
-                                ),
-                                child: SafeArea(
-                                  bottom: false,
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      20,
-                                      56,
-                                      20,
-                                      52,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Site · ${_siteName(d)}',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.92),
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Row(
-                                          children: [
-                                            AdcStatutBadge(statut: d.statut),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              'Planifié · ${_datePlanifiee(d)}',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.9),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        children: [
+                          _AdcHeroCard(
+                            clientName: d.clientName ?? '—',
+                            siteName: _siteName(d),
+                            statut: d.statut,
+                            datePlanifiee: _datePlanifiee(d),
+                            dateAppel: formatDateFr(d.dateAppel),
+                            ressenti: formatAdcRessentiLabel(d.ressenti) ??
+                                ((d.ressenti ?? '').trim().isEmpty
+                                    ? null
+                                    : d.ressenti!.trim()),
+                            observations: (d.commentaire ?? '').trim().isEmpty
+                                ? null
+                                : d.commentaire!.trim(),
+                          ),
+                          const SizedBox(height: 8),
+                          _AdcSectionCard(
+                            title: 'Contacts du site',
+                            icon: Icons.people_outline_rounded,
+                            subtitle: '${d.contacts.length} contact(s)',
+                            child: _AdcContactsSection(contacts: d.contacts),
+                          ),
+                          const SizedBox(height: 8),
+                          _AdcSectionCard(
+                            title: 'Historique des échanges',
+                            icon: Icons.history_rounded,
+                            subtitle: '${_exchangeHistory(d).length} échange(s)',
+                            child: _buildExchangeHistory(d),
+                          ),
+                          if (canRelance) ...[
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: _openRelance,
+                                icon: const Icon(Icons.add_ic_call_rounded),
+                                label: const Text('Créer une relance'),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(46),
+                                  backgroundColor: InterventionsUi.accent,
                                 ),
                               ),
                             ),
-                          ),
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                            sliver: SliverList(
-                              delegate: SliverChildListDelegate([
-                                _AdcSectionCard(
-                                  title: 'Informations',
-                                  icon: Icons.info_outline_rounded,
-                                  child: Column(
-                                    children: [
-                                      InterventionsDetailRow(
-                                        'Client',
-                                        d.clientName ?? '—',
-                                      ),
-                                      InterventionsDetailRow(
-                                        'Site',
-                                        _siteName(d),
-                                      ),
-                                      InterventionsDetailRow(
-                                        'Date planifiée',
-                                        _datePlanifiee(d),
-                                      ),
-                                      InterventionsDetailRow(
-                                        'Date appel',
-                                        formatDateFr(d.dateAppel),
-                                      ),
-                                      InterventionsDetailRow(
-                                        'Statut',
-                                        '',
-                                        valueWidget:
-                                            AdcStatutBadge(statut: d.statut),
-                                      ),
-                                      InterventionsDetailRow(
-                                        'Ressenti',
-                                        d.ressenti ?? '—',
-                                      ),
-                                      if ((d.commentaire ?? '').trim().isNotEmpty)
-                                        InterventionsDetailRow(
-                                          'Observations',
-                                          d.commentaire!.trim(),
-                                        ),
-                                    ],
+                          ] else ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AromaColors.zinc100,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AromaColors.zinc200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.lock_outline,
+                                    size: 18,
+                                    color: AromaColors.zinc500,
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                _AdcSectionCard(
-                                  title: 'Contacts du site',
-                                  icon: Icons.people_outline_rounded,
-                                  subtitle: '${d.contacts.length} contact(s)',
-                                  child: _AdcContactsSection(contacts: d.contacts),
-                                ),
-                                const SizedBox(height: 12),
-                                _AdcSectionCard(
-                                  title: 'Historique des échanges',
-                                  icon: Icons.history_rounded,
-                                  subtitle:
-                                      '${_exchangeHistory(d).length} échange(s)',
-                                  child: _buildExchangeHistory(d),
-                                ),
-                                if (canRelance) ...[
-                                  const SizedBox(height: 20),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FilledButton.icon(
-                                      onPressed: _openRelance,
-                                      icon: const Icon(Icons.add_ic_call_rounded),
-                                      label: const Text('Créer une relance'),
-                                      style: FilledButton.styleFrom(
-                                        minimumSize: const Size.fromHeight(52),
-                                        backgroundColor: InterventionsUi.accent,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Relance fermée — statut ${AdcStatutColors.label(d.statut)}.',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AromaColors.zinc500,
                                       ),
-                                    ),
-                                  ),
-                                ] else ...[
-                                  const SizedBox(height: 20),
-                                  Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: AromaColors.zinc100,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: AromaColors.zinc200),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.lock_outline,
-                                          size: 20,
-                                          color: AromaColors.zinc500,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            'Relance fermée — statut ${AdcStatutColors.label(d.statut)}.',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: AromaColors.zinc500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 ],
-                              ]),
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -396,6 +296,189 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
   }
 }
 
+class _AdcHeroCard extends StatelessWidget {
+  const _AdcHeroCard({
+    required this.clientName,
+    required this.siteName,
+    required this.statut,
+    required this.datePlanifiee,
+    required this.dateAppel,
+    this.ressenti,
+    this.observations,
+  });
+
+  final String clientName;
+  final String siteName;
+  final String? statut;
+  final String datePlanifiee;
+  final String dateAppel;
+  final String? ressenti;
+  final String? observations;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: AromaColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: InterventionsUi.accentSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: InterventionsUi.accentMuted,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.support_agent_outlined,
+                  size: 20,
+                  color: InterventionsUi.accent,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      clientName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AromaColors.zinc900,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 13,
+                          color: AromaColors.zinc500.withValues(alpha: 0.9),
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            siteName,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AromaColors.zinc500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              AdcStatutBadge(statut: statut),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _AdcMetaChip(
+                icon: Icons.event_outlined,
+                label: 'Planifié · $datePlanifiee',
+              ),
+              if (dateAppel != '—')
+                _AdcMetaChip(
+                  icon: Icons.phone_outlined,
+                  label: 'Appel · $dateAppel',
+                ),
+              if (ressenti != null)
+                _AdcMetaChip(
+                  icon: Icons.sentiment_satisfied_alt_outlined,
+                  label: 'Ressenti · $ressenti',
+                ),
+            ],
+          ),
+          if (observations != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AromaColors.zinc100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AromaColors.zinc200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Observations',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AromaColors.zinc500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    observations!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: AromaColors.zinc800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AdcMetaChip extends StatelessWidget {
+  const _AdcMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: InterventionsUi.accentMuted,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: InterventionsUi.accentSoft),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: InterventionsUi.accent),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AromaColors.zinc800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AdcSectionCard extends StatelessWidget {
   const _AdcSectionCard({
     required this.title,
@@ -412,57 +495,38 @@ class _AdcSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: InterventionsUi.softCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: InterventionsUi.accentMuted,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, size: 20, color: InterventionsUi.accent),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: AromaColors.zinc900,
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AromaColors.zinc500,
-                          ),
-                        ),
-                      ],
-                    ],
+          Row(
+            children: [
+              Icon(icon, size: 16, color: InterventionsUi.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: -0.2,
+                    color: AromaColors.zinc900,
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AromaColors.zinc500,
+                  ),
+                ),
+            ],
           ),
-          const Divider(height: 1, color: AromaColors.zinc100),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: child,
-          ),
+          const SizedBox(height: 10),
+          child,
         ],
       ),
     );
@@ -597,7 +661,7 @@ class _AdcContactsSectionState extends State<_AdcContactsSection> {
           ),
           onChanged: (v) => setState(() => _query = v),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         if (filtered.isEmpty)
           const Text(
             'Aucun contact ne correspond à la recherche.',
@@ -606,12 +670,12 @@ class _AdcContactsSectionState extends State<_AdcContactsSection> {
         else
           ...preview.map(
             (c) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 6),
               child: _ContactTile(contact: c),
             ),
           ),
         if (hasMore || widget.contacts.length > _previewCount) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           OutlinedButton.icon(
             onPressed: _openAllContacts,
             icon: const Icon(Icons.unfold_more_rounded, size: 18),
@@ -621,7 +685,7 @@ class _AdcContactsSectionState extends State<_AdcContactsSection> {
                   : 'Voir les ${filtered.length} résultats',
             ),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(44),
+              minimumSize: const Size.fromHeight(40),
               foregroundColor: InterventionsUi.accent,
               side: BorderSide(color: InterventionsUi.accentSoft),
             ),
@@ -640,17 +704,17 @@ class _ContactTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: InterventionsUi.accentMuted.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: InterventionsUi.accentSoft),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 22,
+            radius: 18,
             backgroundColor: InterventionsUi.accentSoft,
             child: Text(
               contact.nomAffiche.isNotEmpty
@@ -659,10 +723,11 @@ class _ContactTile extends StatelessWidget {
               style: const TextStyle(
                 color: InterventionsUi.accent,
                 fontWeight: FontWeight.w700,
+                fontSize: 14,
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -676,7 +741,7 @@ class _ContactTile extends StatelessWidget {
                 ),
                 if ((contact.poste ?? '').isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.only(top: 1),
                     child: Text(
                       contact.poste!,
                       style: const TextStyle(
@@ -686,14 +751,14 @@ class _ContactTile extends StatelessWidget {
                     ),
                   ),
                 if ((contact.telephone ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   _ContactInfoChip(
                     icon: Icons.phone_outlined,
                     text: contact.telephone!,
                   ),
                 ],
                 if ((contact.email ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   _ContactInfoChip(
                     icon: Icons.mail_outline,
                     text: contact.email!,
@@ -782,19 +847,19 @@ class _ExchangeTile extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: onTap,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                   child: Ink(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AromaColors.zinc200),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(10),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -803,12 +868,12 @@ class _ExchangeTile extends StatelessWidget {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
+                                  horizontal: 7,
+                                  vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
                                   color: _moyenColor.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(7),
                                 ),
                                 child: Text(
                                   entry.moyen,
@@ -846,7 +911,7 @@ class _ExchangeTile extends StatelessWidget {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
                             adcExchangeResumeText(entry),
                             maxLines: 2,
@@ -856,7 +921,7 @@ class _ExchangeTile extends StatelessWidget {
                               color: AromaColors.zinc800,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             entry.agent,
                             style: const TextStyle(
