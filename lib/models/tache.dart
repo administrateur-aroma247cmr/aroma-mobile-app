@@ -1,3 +1,5 @@
+import '../utils/task_rules.dart';
+
 class Tache {
   Tache({
     required this.id,
@@ -5,6 +7,7 @@ class Tache {
     this.description,
     this.dateButoire,
     this.createdAt,
+    this.updatedAt,
     this.statut,
     this.priorite,
     this.collaborateurId,
@@ -23,6 +26,7 @@ class Tache {
   final String? description;
   final String? dateButoire;
   final String? createdAt;
+  final String? updatedAt;
   final String? statut;
   final String? priorite;
   final String? collaborateurId;
@@ -35,7 +39,7 @@ class Tache {
   final String? categorie;
   final String? createdBy;
 
-  bool get isTerminee => statut == 'Terminé';
+  bool get isTerminee => isTaskDoneForObjectives(this);
   bool get isSelectionnee => estSelectionnee == true;
 
   factory Tache.fromJson(Map<String, dynamic> m) {
@@ -53,6 +57,7 @@ class Tache {
       description: m['description'] is String ? m['description'] as String : null,
       dateButoire: m['date_butoire'] is String ? m['date_butoire'] as String : null,
       createdAt: m['created_at'] is String ? m['created_at'] as String : null,
+      updatedAt: m['updated_at'] is String ? m['updated_at'] as String : null,
       statut: m['statut'] is String ? m['statut'] as String : null,
       priorite: m['priorite'] is String ? m['priorite'] as String : null,
       collaborateurId:

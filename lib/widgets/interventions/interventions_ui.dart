@@ -556,8 +556,8 @@ List<Widget> interventionDetailRows(Intervention i) {
     InterventionsDetailRow('Date', formatDateFr(i.dateIntervention)),
     InterventionsDetailRow(
       'État',
-      i.etat ?? '—',
-      valueWidget: InterventionEtatBadge(etat: i.etat),
+      i.etatAffiche ?? '—',
+      valueWidget: InterventionEtatBadge(etat: i.etatAffiche),
     ),
     InterventionsDetailRow('Technicien', i.technicienNom ?? '—'),
     InterventionsDetailRow('Auteur', i.auteur ?? '—'),

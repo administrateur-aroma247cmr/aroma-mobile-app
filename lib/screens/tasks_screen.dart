@@ -6,6 +6,7 @@ import '../models/tache.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
+import '../utils/task_rules.dart';
 import '../widgets/entity_scope_selector.dart';
 import '../widgets/modern_bottom_sheet.dart';
 import '../widgets/task_form_sheet.dart';
@@ -16,7 +17,7 @@ import '../widgets/tasks/task_ui.dart';
 import '../widgets/tasks/tasks_calendar_tab.dart';
 import '../widgets/tasks_recap_tab.dart';
 
-enum _TaskScreenTab { active, starred, done, history, calendar, recap }
+enum _TaskScreenTab { active, starred, history, calendar, recap }
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key, this.embedded = false});
@@ -46,7 +47,7 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
           _TaskScreenTab.active,
           'En cours',
           Icons.play_circle_outline_rounded,
-          _tasks.where((t) => !t.isTerminee).length,
+          _tasks.where(taskMatchesActiveList).length,
         ),
         _TabConfig(
           _TaskScreenTab.starred,
@@ -55,16 +56,10 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
           _stats.starred,
         ),
         _TabConfig(
-          _TaskScreenTab.done,
-          'Terminées',
-          Icons.check_circle_outline_rounded,
-          _tasks.where((t) => t.isTerminee).length,
-        ),
-        _TabConfig(
           _TaskScreenTab.history,
           'Historique',
           Icons.history_rounded,
-          _tasks.where((t) => t.isTerminee).length,
+          _tasks.where(taskMatchesHistoryList).length,
         ),
         const _TabConfig(
           _TaskScreenTab.calendar,
@@ -158,17 +153,16 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
     Iterable<Tache> list = _tasks;
     switch (tab) {
       case _TaskScreenTab.starred:
-        list = list.where((t) => t.isSelectionnee && !t.isTerminee);
+        list = list.where(isSelectedRappelTask);
         break;
-      case _TaskScreenTab.done:
       case _TaskScreenTab.history:
-        list = list.where((t) => t.isTerminee);
+        list = list.where(taskMatchesHistoryList);
         break;
       case _TaskScreenTab.calendar:
       case _TaskScreenTab.recap:
         return const [];
       case _TaskScreenTab.active:
-        list = list.where((t) => !t.isTerminee);
+        list = list.where(taskMatchesActiveList);
     }
     final auth = context.read<AuthProvider>();
     if (_executiveCollabFilter != null && auth.canViewAllTaches) {
@@ -189,20 +183,33 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
             _clientLabel(t).toLowerCase().contains(q),
       );
     }
-    return list.toList()
-      ..sort((a, b) {
-        final oa = TaskUi.isOverdue(a);
-        final ob = TaskUi.isOverdue(b);
-        if (oa != ob) return oa ? -1 : 1;
-        return (a.dateButoire ?? '').compareTo(b.dateButoire ?? '');
-      });
+    final rows = list.toList();
+    switch (tab) {
+      case _TaskScreenTab.history:
+        rows.sort((a, b) => historyClosureSortMs(b).compareTo(historyClosureSortMs(a)));
+      case _TaskScreenTab.starred:
+        rows.sort(
+          (a, b) => selectedRappelSortMs(b).compareTo(selectedRappelSortMs(a)),
+        );
+      case _TaskScreenTab.active:
+        rows.sort((a, b) {
+          final oa = TaskUi.isOverdue(a);
+          final ob = TaskUi.isOverdue(b);
+          if (oa != ob) return oa ? -1 : 1;
+          return (a.dateButoire ?? '').compareTo(b.dateButoire ?? '');
+        });
+      case _TaskScreenTab.calendar:
+      case _TaskScreenTab.recap:
+        break;
+    }
+    return rows;
   }
 
   ({int active, int overdue, int starred}) get _stats {
-    final active = _tasks.where((t) => !t.isTerminee).length;
-    final overdue = _tasks.where((t) => TaskUi.isOverdue(t)).length;
-    final starred =
-        _tasks.where((t) => t.isSelectionnee && !t.isTerminee).length;
+    final activeTasks = _tasks.where(taskMatchesActiveList).toList();
+    final active = activeTasks.length;
+    final overdue = activeTasks.where(TaskUi.isOverdue).length;
+    final starred = _tasks.where(isSelectedRappelTask).length;
     return (active: active, overdue: overdue, starred: starred);
   }
 
@@ -216,7 +223,7 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
       return;
     }
     try {
-      final next = t.isTerminee ? 'En cours' : 'Terminé';
+      final next = t.isTerminee ? statutEnCours : statutTermine;
       final body = <String, dynamic>{'statut': next};
       if (next == 'Terminé') {
         final now = DateTime.now();
@@ -354,7 +361,6 @@ class _TasksScreenState extends State<TasksScreen> with EntityScopeReloadMixin {
     }
     final isListTab = _currentTab == _TaskScreenTab.active ||
         _currentTab == _TaskScreenTab.starred ||
-        _currentTab == _TaskScreenTab.done ||
         _currentTab == _TaskScreenTab.history;
 
     return Scaffold(
@@ -942,7 +948,6 @@ class _TaskList extends StatelessWidget {
 
   String get _emptyTitle => switch (tab) {
         _TaskScreenTab.starred => 'Aucune tâche sélectionnée',
-        _TaskScreenTab.done => 'Aucune tâche terminée',
         _TaskScreenTab.history => 'Historique vide',
         _ => 'Aucune tâche en cours',
       };

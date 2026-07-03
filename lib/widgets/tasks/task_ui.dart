@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/tache.dart';
+import '../../utils/task_rules.dart';
 import '../../theme/aroma_theme.dart';
 
 /// Palette module Tâches — alignée sur le dégradé violet/indigo du CRM web.
@@ -22,7 +23,7 @@ abstract final class TaskUi {
       };
 
   static bool isOverdue(Tache t) {
-    if (t.isTerminee) return false;
+    if (t.isTerminee || isTaskClosed(t)) return false;
     final raw = t.dateButoire;
     if (raw == null || raw.isEmpty) return false;
     final parsed = DateTime.tryParse(

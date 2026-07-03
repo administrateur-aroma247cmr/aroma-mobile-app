@@ -1,3 +1,5 @@
+import '../models/intervention.dart';
+
 /// Action principale sur une intervention en vue technicien terrain.
 enum TechnicianInterventionAction { demarrer, creerRapport, none }
 
@@ -7,6 +9,7 @@ const _terminalEtats = {
   'Rapport envoyé',
   "Rapport d'intervention",
   'Clos',
+  'Terminé',
 };
 
 const _rapportEtats = {
@@ -15,6 +18,7 @@ const _rapportEtats = {
   'Traité',
   'Effectué',
   'Clos',
+  'Terminé',
 };
 
 const _technicianHiddenEtats = {
@@ -22,15 +26,15 @@ const _technicianHiddenEtats = {
   'Rapport envoyé',
 };
 
-/// États internes CRM masqués en vue technicien (affichés comme « Traité »).
-String? interventionEtatForTechnicianDisplay(String? etat) {
-  final e = (etat ?? '').trim();
+/// État affiché au technicien : masque les états CRM internes rapport.
+String? interventionEtatForTechnicianDisplay(Intervention intervention) {
+  final e = (intervention.etatAfficheTechnicien ?? '').trim();
   if (e.isEmpty) return null;
   if (_technicianHiddenEtats.contains(e)) return 'Traité';
   return e;
 }
 
-/// Détermine le bouton à afficher selon l'état courant.
+/// Détermine le bouton à afficher selon l'état courant (CRM).
 TechnicianInterventionAction technicianInterventionAction(String? etat) {
   final e = (etat ?? '').trim();
   if (_rapportEtats.contains(e)) return TechnicianInterventionAction.none;

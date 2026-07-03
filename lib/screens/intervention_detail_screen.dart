@@ -16,7 +16,7 @@ class InterventionDetailScreen extends StatefulWidget {
     required this.interventionId,
     this.initialSummary,
     this.fieldActions = false,
-    this.maskStatuses = false,
+    this.technicianDisplay = false,
   });
 
   final String interventionId;
@@ -25,8 +25,8 @@ class InterventionDetailScreen extends StatefulWidget {
   /// Boutons Démarrer / Créer le rapport.
   final bool fieldActions;
 
-  /// Masque Rapport d'intervention / Rapport envoyé (technicien).
-  final bool maskStatuses;
+  /// Affiche l'état backend (`etat_app`) tel quel.
+  final bool technicianDisplay;
 
   @override
   State<InterventionDetailScreen> createState() =>
@@ -149,11 +149,11 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
 
     final i = _intervention!;
     final action = widget.fieldActions
-        ? technicianInterventionAction(i.etat)
+        ? technicianInterventionAction(i.etat ?? i.etatApp)
         : TechnicianInterventionAction.none;
-    final displayEtat = widget.maskStatuses
-        ? interventionEtatForTechnicianDisplay(i.etat)
-        : i.etat;
+    final displayEtat = widget.technicianDisplay
+        ? interventionEtatForTechnicianDisplay(i)
+        : i.etatAffiche;
 
     return RefreshIndicator(
       color: InterventionsUi.accent,
@@ -516,7 +516,7 @@ Future<bool?> openInterventionDetail(
   BuildContext context, {
   required Intervention intervention,
   bool fieldActions = false,
-  bool maskStatuses = false,
+  bool technicianDisplay = false,
 }) {
   return Navigator.of(context).push<bool>(
     MaterialPageRoute<bool>(
@@ -524,7 +524,7 @@ Future<bool?> openInterventionDetail(
         interventionId: intervention.id,
         initialSummary: intervention,
         fieldActions: fieldActions,
-        maskStatuses: maskStatuses,
+        technicianDisplay: technicianDisplay,
       ),
     ),
   );

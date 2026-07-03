@@ -25,7 +25,7 @@ class InterventionsListTab extends StatefulWidget {
     super.key,
     this.fieldActions = false,
     this.filterByAssignment = false,
-    this.maskStatuses = false,
+    this.technicianDisplay = false,
   });
 
   /// Boutons terrain (Démarrer / Créer le rapport) — tous les accès interventions.
@@ -34,8 +34,8 @@ class InterventionsListTab extends StatefulWidget {
   /// Technicien : uniquement les interventions assignées.
   final bool filterByAssignment;
 
-  /// Technicien : masque Rapport d'intervention / Rapport envoyé.
-  final bool maskStatuses;
+  /// Technicien : affiche `etat_app` / état backend tel quel.
+  final bool technicianDisplay;
 
   @override
   State<InterventionsListTab> createState() => _InterventionsListTabState();
@@ -98,18 +98,27 @@ class _InterventionsListTabState extends State<InterventionsListTab>
       final auth = context.read<AuthProvider>();
       final api = auth.api;
 
+      TechnicianMatchContext? ctx;
+      String? techIdForApi;
+      if (widget.filterByAssignment) {
+        ctx = await buildTechnicianMatchContext(auth);
+        techIdForApi = ctx.technicienId;
+      }
+
       final result = await api.listInterventions(
         dateFrom: _monthDateMin,
         dateTo: _monthDateMax,
+        idTechnicien: techIdForApi,
         limit: 500,
       );
 
       var rows = result.items;
-      if (widget.filterByAssignment) {
-        final ctx = await buildTechnicianMatchContext(auth);
-        rows = rows
-            .where((i) => isInterventionAssignedToTechnician(i, ctx))
-            .toList();
+      if (widget.filterByAssignment && ctx != null) {
+        rows = filterInterventionsForTechnician(
+          rows,
+          ctx,
+          apiFilteredByTechnicien: techIdForApi != null,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -141,7 +150,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
       context,
       intervention: i,
       fieldActions: widget.fieldActions,
-      maskStatuses: widget.maskStatuses,
+      technicianDisplay: widget.technicianDisplay,
     );
     if (changed == true && mounted) await _reload();
   }
@@ -222,9 +231,9 @@ class _InterventionsListTabState extends State<InterventionsListTab>
                   subtitle:
                       '${formatDateFr(i.dateIntervention)} · ${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
                   trailingWidget: InterventionEtatBadge(
-                    etat: widget.maskStatuses
-                        ? interventionEtatForTechnicianDisplay(i.etat)
-                        : i.etat,
+                    etat: widget.technicianDisplay
+                        ? interventionEtatForTechnicianDisplay(i)
+                        : i.etatAffiche,
                   ),
                   onTap: () => _openIntervention(i),
                 ),
@@ -289,17 +298,27 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     try {
       final auth = context.read<AuthProvider>();
       final api = auth.api;
+
+      TechnicianMatchContext? ctx;
+      String? techIdForApi;
+      if (widget.technicianFieldView) {
+        ctx = await buildTechnicianMatchContext(auth);
+        techIdForApi = ctx.technicienId;
+      }
+
       final result = await api.listInterventions(
         dateFrom: _monthDateMin,
         dateTo: _monthDateMax,
+        idTechnicien: techIdForApi,
         limit: 500,
       );
       var rows = result.items;
-      if (widget.technicianFieldView) {
-        final ctx = await buildTechnicianMatchContext(auth);
-        rows = rows
-            .where((i) => isInterventionAssignedToTechnician(i, ctx))
-            .toList();
+      if (widget.technicianFieldView && ctx != null) {
+        rows = filterInterventionsForTechnician(
+          rows,
+          ctx,
+          apiFilteredByTechnicien: techIdForApi != null,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -344,7 +363,7 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
       context,
       intervention: i,
       fieldActions: widget.technicianFieldView,
-      maskStatuses: widget.technicianFieldView,
+      technicianDisplay: widget.technicianFieldView,
     );
     if (changed == true && mounted) await _reload();
   }
@@ -432,8 +451,8 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
                       '${i.typeIntervention ?? '—'} · ${i.clientNom ?? '—'}',
                   trailingWidget: InterventionEtatBadge(
                     etat: widget.technicianFieldView
-                        ? interventionEtatForTechnicianDisplay(i.etat)
-                        : i.etat,
+                        ? interventionEtatForTechnicianDisplay(i)
+                        : i.etatAffiche,
                   ),
                   onTap: () => _showDetail(i),
                 ),

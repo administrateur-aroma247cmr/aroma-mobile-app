@@ -22,9 +22,16 @@ bool filterInterventionsByTechnicianAssignment(AuthProvider auth) {
   return isTechnicianFieldView(auth);
 }
 
-/// Affichage états rapport masqués pour le technicien terrain.
-bool maskInterventionEtatsForTechnician(AuthProvider auth) {
-  return isTechnicianFieldView(auth);
+/// Filtre client après chargement API (repli si pas de `id_technicien` API).
+List<Intervention> filterInterventionsForTechnician(
+  List<Intervention> rows,
+  TechnicianMatchContext ctx, {
+  required bool apiFilteredByTechnicien,
+}) {
+  if (apiFilteredByTechnicien) return rows;
+  return rows
+      .where((i) => isInterventionAssignedToTechnician(i, ctx))
+      .toList();
 }
 
 String _normName(String? value) {

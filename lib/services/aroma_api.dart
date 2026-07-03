@@ -1305,6 +1305,7 @@ class AromaApi {
     String? typeIntervention,
     String? dateFrom,
     String? dateTo,
+    String? idTechnicien,
     int limit = 200,
     int skip = 0,
   }) async {
@@ -1317,6 +1318,9 @@ class AromaApi {
     }
     if (dateFrom != null && dateFrom.isNotEmpty) q['date_from'] = dateFrom;
     if (dateTo != null && dateTo.isNotEmpty) q['date_to'] = dateTo;
+    if (idTechnicien != null && idTechnicien.isNotEmpty) {
+      q['id_technicien'] = idTechnicien;
+    }
 
     final res = await _client.get(
       _uri('/api/interventions', q),

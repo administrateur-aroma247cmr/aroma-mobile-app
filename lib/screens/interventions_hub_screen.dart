@@ -141,8 +141,8 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                         fieldActions: hasInterventionsModuleAccess(auth),
                         filterByAssignment:
                             filterInterventionsByTechnicianAssignment(auth),
-                        maskStatuses:
-                            maskInterventionEtatsForTechnician(auth),
+                        technicianDisplay:
+                            isTechnicianFieldView(auth),
                       ),
                   },
                 ),

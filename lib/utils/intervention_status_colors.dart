@@ -61,6 +61,11 @@ abstract final class InterventionStatusColors {
       foreground: Color(0xFF3F3F46),
       border: Color(0xFFE4E4E7),
     ),
+    'Terminé': StatusBadgeColors(
+      background: Color(0xFFD1FAE5),
+      foreground: Color(0xFF065F46),
+      border: Color(0xFFA7F3D0),
+    ),
     'En cours': StatusBadgeColors(
       background: Color(0xFFEDE9FE),
       foreground: Color(0xFF5B21B6),

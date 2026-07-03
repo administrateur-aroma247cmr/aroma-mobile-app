@@ -15,6 +15,7 @@ class Intervention {
     this.idAgence,
     this.dateIntervention,
     this.etat,
+    this.etatApp,
     this.auteur,
   });
 
@@ -32,8 +33,17 @@ class Intervention {
   final String? idClients;
   final String? idAgence;
   final String? dateIntervention;
+  /// État CRM interne.
   final String? etat;
+  /// État affiché app / terrain (`etat_app` API).
+  final String? etatApp;
   final String? auteur;
+
+  /// Libellé état pour l’UI (repli `etat_app` → `etat`).
+  String? get etatAffiche => etat ?? etatApp;
+
+  /// Vue technicien : privilégie `etat_app` renvoyé par le backend.
+  String? get etatAfficheTechnicien => etatApp ?? etat;
 
   String get titreAffiche {
     final s = (sujet ?? '').trim();
@@ -68,7 +78,8 @@ class Intervention {
       idClients: m['id_clients']?.toString(),
       idAgence: m['id_agence']?.toString(),
       dateIntervention: _str(m['date_intervention']),
-      etat: _str(m['etat']) ?? _str(m['etat_app']),
+      etat: _str(m['etat']),
+      etatApp: _str(m['etat_app']),
       auteur: _str(m['auteur']),
     );
   }
