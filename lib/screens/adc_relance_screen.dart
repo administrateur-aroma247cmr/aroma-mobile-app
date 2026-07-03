@@ -8,6 +8,7 @@ import '../utils/adc_exchange_history.dart';
 import '../utils/adc_form_logic.dart';
 import '../utils/format_utils.dart';
 import '../widgets/interventions/interventions_ui.dart';
+import '../widgets/modern_bottom_sheet.dart';
 import '../widgets/modern_select_field.dart';
 
 enum _RelanceCanal { telephone, mail, whatsapp }
@@ -38,8 +39,8 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
 
   _RelanceCanal _canal = _RelanceCanal.telephone;
   List<AdcContact> _contacts = [];
-  final Set<String> _selectedContactIds = {};
   String? _contactConcerneId;
+  String? _phoneContactId;
   String _adcStatut = 'en_attente';
   String? _adcRessenti;
   List<AdcExchangeEntry> _exchangeHistory = [];
@@ -129,7 +130,11 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
       adcRessenti: d.ressenti,
       agentFallback: _agentLabel(),
     );
-    _selectedContactIds.clear();
+    _phoneContactId = _contacts
+        .where((c) => c.id == _contactConcerneId && (c.telephone ?? '').isNotEmpty)
+        .map((c) => c.id)
+        .firstOrNull ??
+        _contactsForPhone.firstOrNull?.id;
     _mailTo = _contactsForMail.firstOrNull?.email;
     _whatsappPhone = _contactsForPhone.firstOrNull?.telephone;
     final historique = isAdcFicheHistorique(d.datePlanifiee);
@@ -157,19 +162,13 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
         _detail?.datePlanifiee ?? widget.fallbackDatePlanifiee,
       );
 
-  List<AdcContact> get _contactsForMail {
-    final withEmail =
-        _contacts.where((c) => (c.email ?? '').trim().isNotEmpty).toList();
-    if (_selectedContactIds.isEmpty) return withEmail;
-    return withEmail.where((c) => _selectedContactIds.contains(c.id)).toList();
-  }
+  List<AdcContact> get _contactsForMail => _contacts
+      .where((c) => (c.email ?? '').trim().isNotEmpty)
+      .toList();
 
-  List<AdcContact> get _contactsForPhone {
-    final withPhone =
-        _contacts.where((c) => (c.telephone ?? '').trim().isNotEmpty).toList();
-    if (_selectedContactIds.isEmpty) return withPhone;
-    return withPhone.where((c) => _selectedContactIds.contains(c.id)).toList();
-  }
+  List<AdcContact> get _contactsForPhone => _contacts
+      .where((c) => (c.telephone ?? '').trim().isNotEmpty)
+      .toList();
 
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
@@ -246,7 +245,9 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
       ressenti: ressentiVal.isNotEmpty ? ressentiVal : null,
     );
 
-    final ref = _contacts.where((c) => c.id == _contactConcerneId).firstOrNull;
+    final ref = _contacts.where((c) => c.id == _phoneContactId).firstOrNull ??
+        _contacts.where((c) => c.id == _contactConcerneId).firstOrNull;
+    if (ref != null) _contactConcerneId = ref.id;
     final contactLabel = ref != null
         ? '${ref.nomAffiche}${(ref.telephone ?? '').trim().isNotEmpty ? ' — ${ref.telephone}' : ''}'
         : '—';
@@ -344,6 +345,7 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
             'WhatsApp',
           ),
           messageCorps: corps,
+          ressenti: formatAdcRessentiLabel(_adcRessenti),
         ),
       );
       _whatsappMessageCtrl.clear();
@@ -436,96 +438,69 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
       _snack('Aucun client lié.', error: true);
       return;
     }
-    final nomCtrl = TextEditingController();
-    final posteCtrl = TextEditingController();
-    final telCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final api = context.read<AuthProvider>().api;
 
-    final ok = await showDialog<bool>(
+    final created = await showModernBottomSheet<AdcContact>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nouveau contact'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nomCtrl,
-                decoration: const InputDecoration(labelText: 'Nom *'),
-              ),
-              TextField(
-                controller: posteCtrl,
-                decoration: const InputDecoration(labelText: 'Poste'),
-              ),
-              TextField(
-                controller: telCtrl,
-                decoration: const InputDecoration(labelText: 'Téléphone'),
-              ),
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Enregistrer'),
-          ),
-        ],
+      builder: (ctx) => _AddContactSheet(
+        clientId: clientId,
+        siteId: _detail?.siteId,
       ),
     );
 
-    if (ok != true) {
-      nomCtrl.dispose();
-      posteCtrl.dispose();
-      telCtrl.dispose();
-      emailCtrl.dispose();
-      return;
-    }
+    if (created == null || !mounted) return;
+    setState(() {
+      _contacts = [..._contacts, created];
+      _contactConcerneId ??= created.id;
+      _phoneContactId ??=
+          (created.telephone ?? '').isNotEmpty ? created.id : null;
+      _mailTo ??= created.email;
+      _whatsappPhone ??= created.telephone;
+    });
+    _snack('Contact ajouté');
+  }
 
-    if (nomCtrl.text.trim().isEmpty) {
-      _snack('Le nom est requis.', error: true);
-      nomCtrl.dispose();
-      posteCtrl.dispose();
-      telCtrl.dispose();
-      emailCtrl.dispose();
-      return;
-    }
-
-    try {
-      final created = await api.createContactClient(
-            idTiers: clientId,
-            idAgence: _detail?.siteId,
-            nom: nomCtrl.text.trim(),
-            poste: posteCtrl.text.trim().isEmpty ? null : posteCtrl.text.trim(),
-            telephone: telCtrl.text.trim().isEmpty ? null : telCtrl.text.trim(),
-            email: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
-            typeContact: 'adc',
-          );
-      if (!mounted) return;
-      final mapped = adcContactFromClient(created);
-      setState(() {
-        _contacts = [..._contacts, mapped];
-        _contactConcerneId ??= mapped.id;
-        _mailTo ??= mapped.email;
-        _whatsappPhone ??= mapped.telephone;
-      });
-      _snack('Contact ajouté');
-    } catch (e) {
-      _snack(e.toString(), error: true);
-    } finally {
-      nomCtrl.dispose();
-      posteCtrl.dispose();
-      telCtrl.dispose();
-      emailCtrl.dispose();
-    }
+  Widget _buildStatutRessentiFields() {
+    final hideRessenti = _adcStatut == 'non_répondu';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ModernSelectField<String>(
+          label: 'Statut',
+          hint: 'Choisir',
+          value: _adcStatut,
+          allowClear: false,
+          options: adcStatutOptions
+              .map(
+                (o) => ModernSelectOption(
+                  value: o.value,
+                  label: o.label,
+                ),
+              )
+              .toList(),
+          onChanged: (v) {
+            if (v != null) _onStatutChanged(v);
+          },
+        ),
+        if (!hideRessenti) ...[
+          const SizedBox(height: 16),
+          ModernSelectField<String>(
+            label: 'Ressenti client (0–10)',
+            hint: 'Non renseigné',
+            value: _adcRessenti,
+            options: adcRessentiOptions
+                .where((o) => o.value.isNotEmpty)
+                .map(
+                  (o) => ModernSelectOption(
+                    value: o.value,
+                    label: o.label,
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setState(() => _adcRessenti = v),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -540,6 +515,13 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
         foregroundColor: AromaColors.zinc900,
         elevation: 0,
         title: const Text('Nouvelle relance'),
+        actions: [
+          IconButton(
+            onPressed: _addContact,
+            icon: const Icon(Icons.person_add_outlined),
+            tooltip: 'Ajouter un contact',
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -562,95 +544,13 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
                                 onChanged: (c) => setState(() => _canal = c),
                               ),
                               const SizedBox(height: 24),
-                              _SectionLabel('Contacts'),
-                              const SizedBox(height: 10),
-                              _RelanceCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Expanded(
-                                          child: Text(
-                                            'Référent ADC',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton.icon(
-                                          onPressed: _addContact,
-                                          icon: const Icon(Icons.add, size: 18),
-                                          label: const Text('Contact'),
-                                        ),
-                                      ],
-                                    ),
-                                    if (_contacts.isEmpty)
-                                      const Text(
-                                        'Aucun contact — ajoutez-en un.',
-                                        style: TextStyle(
-                                          color: AromaColors.zinc500,
-                                        ),
-                                      )
-                                    else
-                                      ModernSelectField<String>(
-                                        label: 'Contact référent',
-                                        hint: 'Choisir un contact',
-                                        value: _contactConcerneId,
-                                        options: _contacts
-                                            .map(
-                                              (c) => ModernSelectOption(
-                                                value: c.id,
-                                                label: c.nomAffiche,
-                                                subtitle: c.poste,
-                                                icon: Icons.person_outline,
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (v) =>
-                                            setState(() => _contactConcerneId = v),
-                                      ),
-                                    if (_contacts.length > 1) ...[
-                                      const SizedBox(height: 16),
-                                      const Text(
-                                        'Cibler pour les relances (optionnel)',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: AromaColors.zinc500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      ..._contacts.map(
-                                        (c) => CheckboxListTile(
-                                          value: _selectedContactIds.contains(c.id),
-                                          onChanged: (_) {
-                                            setState(() {
-                                              if (_selectedContactIds
-                                                  .contains(c.id)) {
-                                                _selectedContactIds.remove(c.id);
-                                              } else {
-                                                _selectedContactIds.add(c.id);
-                                              }
-                                            });
-                                          },
-                                          contentPadding: EdgeInsets.zero,
-                                          title: Text(c.nomAffiche),
-                                          subtitle: Text(
-                                            [
-                                              if ((c.telephone ?? '').isNotEmpty)
-                                                c.telephone!,
-                                              if ((c.email ?? '').isNotEmpty)
-                                                c.email!,
-                                            ].join(' · '),
-                                            style: const TextStyle(fontSize: 12),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 24),
+                              if (_canal == _RelanceCanal.telephone ||
+                                  _canal == _RelanceCanal.whatsapp) ...[
+                                _SectionLabel('Statut et ressenti'),
+                                const SizedBox(height: 10),
+                                _RelanceCard(child: _buildStatutRessentiFields()),
+                                const SizedBox(height: 24),
+                              ],
                               _SectionLabel(_canalLabel),
                               const SizedBox(height: 10),
                               _RelanceCard(child: _buildCanalForm()),
@@ -792,6 +692,33 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_contactsForPhone.isNotEmpty)
+          ModernSelectField<String>(
+            label: 'Contact appelé',
+            hint: 'Choisir le contact',
+            value: _phoneContactId,
+            allowClear: false,
+            options: _contactsForPhone
+                .map(
+                  (c) => ModernSelectOption(
+                    value: c.id,
+                    label: c.nomAffiche,
+                    subtitle: c.telephone,
+                    icon: Icons.phone_in_talk_outlined,
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setState(() => _phoneContactId = v),
+          )
+        else
+          TextField(
+            controller: _manualPhoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Numéro composé',
+            ),
+          ),
+        const SizedBox(height: 16),
         if (_isFicheHistorique) ...[
           TextField(
             controller: _dateAppelCtrl,
@@ -803,40 +730,6 @@ class _AdcRelanceScreenState extends State<AdcRelanceScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        ModernSelectField<String>(
-          label: 'Statut',
-          hint: 'Choisir',
-          value: _adcStatut,
-          allowClear: false,
-          options: adcStatutOptions
-              .map(
-                (o) => ModernSelectOption(
-                  value: o.value,
-                  label: o.label,
-                ),
-              )
-              .toList(),
-          onChanged: (v) {
-            if (v != null) _onStatutChanged(v);
-          },
-        ),
-        const SizedBox(height: 16),
-        ModernSelectField<String>(
-          label: 'Ressenti client (0–10)',
-          hint: 'Non renseigné',
-          value: _adcRessenti,
-          options: adcRessentiOptions
-              .where((o) => o.value.isNotEmpty)
-              .map(
-                (o) => ModernSelectOption(
-                  value: o.value,
-                  label: o.label,
-                ),
-              )
-              .toList(),
-          onChanged: (v) => setState(() => _adcRessenti = v),
-        ),
-        const SizedBox(height: 16),
         TextField(
           controller: _observationsCtrl,
           maxLines: 3,
@@ -1173,6 +1066,7 @@ class _HistoryPreviewRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ressenti = formatAdcRessentiLabel(entry.ressenti);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1193,29 +1087,248 @@ class _HistoryPreviewRow extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                entry.resume,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
+          child: Text(
+            adcExchangeResumeText(entry),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              entry.dateAffiche,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AromaColors.zinc500,
               ),
+            ),
+            if (ressenti != null) ...[
+              const SizedBox(height: 2),
               Text(
-                entry.dateAffiche,
+                'Ressenti $ressenti',
                 style: const TextStyle(
                   fontSize: 11,
-                  color: AromaColors.zinc500,
+                  fontWeight: FontWeight.w600,
+                  color: InterventionsUi.accent,
                 ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AddContactSheet extends StatefulWidget {
+  const _AddContactSheet({
+    required this.clientId,
+    this.siteId,
+  });
+
+  final String clientId;
+  final String? siteId;
+
+  @override
+  State<_AddContactSheet> createState() => _AddContactSheetState();
+}
+
+class _AddContactSheetState extends State<_AddContactSheet> {
+  final _nomCtrl = TextEditingController();
+  final _posteCtrl = TextEditingController();
+  final _telCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nomCtrl.dispose();
+    _posteCtrl.dispose();
+    _telCtrl.dispose();
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_nomCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Le nom est requis.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final created = await context.read<AuthProvider>().api.createContactClient(
+            idTiers: widget.clientId,
+            idAgence: widget.siteId,
+            nom: _nomCtrl.text.trim(),
+            poste: _posteCtrl.text.trim().isEmpty ? null : _posteCtrl.text.trim(),
+            telephone: _telCtrl.text.trim().isEmpty ? null : _telCtrl.text.trim(),
+            email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+            typeContact: 'adc',
+          );
+      if (!mounted) return;
+      Navigator.of(context).pop(adcContactFromClient(created));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: ModernBottomSheetShell(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              modernSheetDragHandle(),
+              const SizedBox(height: 16),
+              const ModernSheetHeader(
+                title: 'Nouveau contact',
+                subtitle: 'Enregistré pour ce client et ce site',
+                theme: ModernSheetThemes.interventions,
+              ),
+              const SizedBox(height: 24),
+              _ContactField(
+                controller: _nomCtrl,
+                label: 'Nom *',
+                icon: Icons.person_outline_rounded,
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 14),
+              _ContactField(
+                controller: _posteCtrl,
+                label: 'Poste',
+                icon: Icons.badge_outlined,
+              ),
+              const SizedBox(height: 14),
+              _ContactField(
+                controller: _telCtrl,
+                label: 'Téléphone',
+                icon: Icons.phone_outlined,
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 14),
+              _ContactField(
+                controller: _emailCtrl,
+                label: 'Email',
+                icon: Icons.mail_outline_rounded,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Color(0xFFB91C1C),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      child: const Text('Annuler'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _submit,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check_rounded, size: 20),
+                      label: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        backgroundColor: InterventionsUi.accent,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _ContactField extends StatelessWidget {
+  const _ContactField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: InterventionsUi.accent, size: 22),
+        filled: true,
+        fillColor: InterventionsUi.accentMuted.withValues(alpha: 0.35),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: InterventionsUi.accentSoft),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: InterventionsUi.accent, width: 1.5),
+        ),
+      ),
     );
   }
 }

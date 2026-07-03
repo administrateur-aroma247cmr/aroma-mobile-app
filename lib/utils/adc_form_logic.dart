@@ -207,3 +207,46 @@ Map<String, dynamic> buildAdcPatchBody({
 
 bool isAdcStatutRepondu(String? statut) =>
     (statut ?? '').trim() == 'répondu';
+
+/// Relance impossible si l’ADC est déjà clôturé (répondu ou non répondu).
+bool canCreateAdcRelance(String? statut) {
+  final s = (statut ?? '').trim();
+  return s != 'répondu' && s != 'non_répondu';
+}
+
+/// Affichage ressenti historique (ex. « 6/10 »).
+String? formatAdcRessentiLabel(String? ressenti) {
+  final s = (ressenti ?? '').trim();
+  if (s.isEmpty) return null;
+  if (s.contains('/10')) return s;
+  final n = int.tryParse(s.replaceAll(RegExp(r'[^\d]'), ''));
+  if (n != null && n >= 0 && n <= 10) return '$n/10';
+  return s;
+}
+
+DateTime? _adcPlannedDay(String? datePlanifiee) {
+  final raw = (datePlanifiee ?? '').trim();
+  if (raw.isEmpty) return null;
+  final dayStr = raw.length >= 10 ? raw.substring(0, 10) : raw;
+  final parsed = DateTime.tryParse(dayStr);
+  if (parsed == null) return null;
+  return DateTime(parsed.year, parsed.month, parsed.day);
+}
+
+/// Liste mobile : mois en cours, passé conservé, futur limité à J+2.
+bool adcMatchesMobileListFilter(
+  ExperienceAdc adc, {
+  DateTime? now,
+}) {
+  now ??= DateTime.now();
+  final plannedDay = _adcPlannedDay(adc.datePlanifiee);
+  if (plannedDay == null) return false;
+
+  if (plannedDay.year != now.year || plannedDay.month != now.month) {
+    return false;
+  }
+
+  final today = DateTime(now.year, now.month, now.day);
+  final maxFuture = today.add(const Duration(days: 2));
+  return !plannedDay.isAfter(maxFuture);
+}

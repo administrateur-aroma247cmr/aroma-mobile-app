@@ -8,6 +8,7 @@ import '../../screens/intervention_create_screen.dart';
 import '../../screens/intervention_detail_screen.dart';
 import '../../screens/rapport_mensuel_detail_screen.dart';
 import '../../theme/aroma_theme.dart';
+import '../../utils/adc_form_logic.dart';
 import '../../utils/format_utils.dart';
 import '../../utils/intervention_technician_actions.dart';
 import '../../utils/technician_view.dart';
@@ -564,11 +565,17 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
   List<ExperienceAdc> get _filtered {
     final q = _search.trim().toLowerCase();
     return _rows.where((a) {
+      if (!adcMatchesMobileListFilter(a)) return false;
       if (q.isEmpty) return true;
       return a.titreAffiche.toLowerCase().contains(q) ||
           (a.siteName ?? '').toLowerCase().contains(q) ||
           (a.statut ?? '').toLowerCase().contains(q);
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        final da = a.datePlanifiee ?? '';
+        final db = b.datePlanifiee ?? '';
+        return da.compareTo(db);
+      });
   }
 
   void _openFiche(ExperienceAdc adc) {
@@ -601,7 +608,7 @@ class _InterventionsAdcTabState extends State<InterventionsAdcTab>
         children: [
           const InterventionsSectionHeader(
             title: 'Mes appels de courtoisie (ADC)',
-            subtitle: 'Contacts clients après intervention',
+            subtitle: 'Mois en cours · jusqu’à J+2 · passé conservé',
           ),
           const SizedBox(height: 14),
           InterventionsSearchField(

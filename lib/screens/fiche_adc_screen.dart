@@ -7,6 +7,7 @@ import '../theme/aroma_theme.dart';
 import '../utils/adc_exchange_history.dart';
 import '../utils/adc_form_logic.dart';
 import '../utils/format_utils.dart';
+import '../utils/intervention_status_colors.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/modern_bottom_sheet.dart';
 import 'adc_relance_screen.dart';
@@ -97,10 +98,12 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
   Future<void> _openRelance() async {
     final d = _detail;
     if (d == null) return;
-    if (isAdcStatutRepondu(d.statut)) {
+    if (!canCreateAdcRelance(d.statut)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Cet ADC est déjà marqué comme répondu.'),
+          content: Text(
+            'Relance impossible : statut déjà « Répondu » ou « Non répondu ».',
+          ),
         ),
       );
       return;
@@ -147,9 +150,7 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
             border: Border.all(color: AromaColors.zinc200),
           ),
           child: Text(
-            (e.notesAppel ?? e.resume).trim().isNotEmpty
-                ? (e.notesAppel ?? e.resume)
-                : '—',
+            adcExchangeDisplayText(e),
             style: const TextStyle(fontSize: 14, height: 1.45),
           ),
         ),
@@ -160,6 +161,7 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
   @override
   Widget build(BuildContext context) {
     final d = _detail;
+    final canRelance = d != null && canCreateAdcRelance(d.statut);
 
     return Scaffold(
       backgroundColor: InterventionsUi.canvasSoft,
@@ -181,21 +183,22 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
                             backgroundColor: InterventionsUi.gradientStart,
                             foregroundColor: Colors.white,
                             actions: [
-                              TextButton.icon(
-                                onPressed: _openRelance,
-                                icon: Icon(
-                                  Icons.add_ic_call_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                label: const Text(
-                                  'Relance',
-                                  style: TextStyle(
+                              if (canRelance)
+                                TextButton.icon(
+                                  onPressed: _openRelance,
+                                  icon: Icon(
+                                    Icons.add_ic_call_rounded,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w600,
+                                    size: 20,
+                                  ),
+                                  label: const Text(
+                                    'Relance',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
                               const SizedBox(width: 4),
                             ],
                             flexibleSpace: FlexibleSpaceBar(
@@ -308,26 +311,7 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
                                   title: 'Contacts du site',
                                   icon: Icons.people_outline_rounded,
                                   subtitle: '${d.contacts.length} contact(s)',
-                                  child: d.contacts.isEmpty
-                                      ? const Text(
-                                          'Aucun contact enregistré.',
-                                          style: TextStyle(
-                                            color: AromaColors.zinc500,
-                                          ),
-                                        )
-                                      : Column(
-                                          children: [
-                                            for (var i = 0;
-                                                i < d.contacts.length;
-                                                i++) ...[
-                                              if (i > 0)
-                                                const Divider(height: 20),
-                                              _ContactTile(
-                                                contact: d.contacts[i],
-                                              ),
-                                            ],
-                                          ],
-                                        ),
+                                  child: _AdcContactsSection(contacts: d.contacts),
                                 ),
                                 const SizedBox(height: 12),
                                 _AdcSectionCard(
@@ -337,19 +321,50 @@ class _FicheAdcScreenState extends State<FicheAdcScreen> {
                                       '${_exchangeHistory(d).length} échange(s)',
                                   child: _buildExchangeHistory(d),
                                 ),
-                                const SizedBox(height: 20),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton.icon(
-                                    onPressed: _openRelance,
-                                    icon: const Icon(Icons.add_ic_call_rounded),
-                                    label: const Text('Créer une relance'),
-                                    style: FilledButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(52),
-                                      backgroundColor: InterventionsUi.accent,
+                                if (canRelance) ...[
+                                  const SizedBox(height: 20),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: _openRelance,
+                                      icon: const Icon(Icons.add_ic_call_rounded),
+                                      label: const Text('Créer une relance'),
+                                      style: FilledButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(52),
+                                        backgroundColor: InterventionsUi.accent,
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ] else ...[
+                                  const SizedBox(height: 20),
+                                  Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: AromaColors.zinc100,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: AromaColors.zinc200),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.lock_outline,
+                                          size: 20,
+                                          color: AromaColors.zinc500,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            'Relance fermée — statut ${AdcStatutColors.label(d.statut)}.',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: AromaColors.zinc500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ]),
                             ),
                           ),
@@ -454,6 +469,169 @@ class _AdcSectionCard extends StatelessWidget {
   }
 }
 
+class _AdcContactsSection extends StatefulWidget {
+  const _AdcContactsSection({required this.contacts});
+
+  final List<AdcContact> contacts;
+
+  @override
+  State<_AdcContactsSection> createState() => _AdcContactsSectionState();
+}
+
+class _AdcContactsSectionState extends State<_AdcContactsSection> {
+  static const _previewCount = 4;
+  String _query = '';
+
+  List<AdcContact> get _filtered {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return widget.contacts;
+    return widget.contacts.where((c) {
+      return c.nomAffiche.toLowerCase().contains(q) ||
+          (c.poste ?? '').toLowerCase().contains(q) ||
+          (c.telephone ?? '').toLowerCase().contains(q) ||
+          (c.email ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void _openAllContacts() {
+    showModernBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        var sheetQuery = _query;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final q = sheetQuery.trim().toLowerCase();
+            final list = q.isEmpty
+                ? widget.contacts
+                : widget.contacts.where((c) {
+                    return c.nomAffiche.toLowerCase().contains(q) ||
+                        (c.poste ?? '').toLowerCase().contains(q) ||
+                        (c.telephone ?? '').toLowerCase().contains(q) ||
+                        (c.email ?? '').toLowerCase().contains(q);
+                  }).toList();
+
+            return ModernBottomSheetShell(
+              initialChildSize: 0.85,
+              minChildSize: 0.45,
+              child: DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.85,
+                minChildSize: 0.45,
+                maxChildSize: 0.95,
+                builder: (context, scrollController) {
+                  return Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      modernSheetDragHandle(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Contacts (${widget.contacts.length})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              decoration: InterventionsUi.softSearchDecoration(
+                                hintText: 'Rechercher un contact…',
+                              ),
+                              onChanged: (v) =>
+                                  setSheetState(() => sheetQuery = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: list.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Aucun contact trouvé.',
+                                  style: TextStyle(color: AromaColors.zinc500),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollController,
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                                itemCount: list.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (_, i) =>
+                                    _ContactTile(contact: list[i]),
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.contacts.isEmpty) {
+      return const Text(
+        'Aucun contact enregistré.',
+        style: TextStyle(color: AromaColors.zinc500),
+      );
+    }
+
+    final filtered = _filtered;
+    final preview = filtered.take(_previewCount).toList();
+    final hasMore = filtered.length > _previewCount || widget.contacts.length > _previewCount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          decoration: InterventionsUi.softSearchDecoration(
+            hintText: 'Rechercher parmi ${widget.contacts.length} contacts…',
+          ),
+          onChanged: (v) => setState(() => _query = v),
+        ),
+        const SizedBox(height: 12),
+        if (filtered.isEmpty)
+          const Text(
+            'Aucun contact ne correspond à la recherche.',
+            style: TextStyle(color: AromaColors.zinc500, fontSize: 13),
+          )
+        else
+          ...preview.map(
+            (c) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ContactTile(contact: c),
+            ),
+          ),
+        if (hasMore || widget.contacts.length > _previewCount) ...[
+          const SizedBox(height: 4),
+          OutlinedButton.icon(
+            onPressed: _openAllContacts,
+            icon: const Icon(Icons.unfold_more_rounded, size: 18),
+            label: Text(
+              _query.isEmpty
+                  ? 'Voir les ${widget.contacts.length} contacts'
+                  : 'Voir les ${filtered.length} résultats',
+            ),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              foregroundColor: InterventionsUi.accent,
+              side: BorderSide(color: InterventionsUi.accentSoft),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _ContactTile extends StatelessWidget {
   const _ContactTile({required this.contact});
 
@@ -461,66 +639,92 @@ class _ContactTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: InterventionsUi.accentSoft,
-          child: Text(
-            contact.nomAffiche.isNotEmpty
-                ? contact.nomAffiche[0].toUpperCase()
-                : '?',
-            style: const TextStyle(
-              color: InterventionsUi.accent,
-              fontWeight: FontWeight.w700,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: InterventionsUi.accentMuted.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: InterventionsUi.accentSoft),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: InterventionsUi.accentSoft,
+            child: Text(
+              contact.nomAffiche.isNotEmpty
+                  ? contact.nomAffiche[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                color: InterventionsUi.accent,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                contact.nomAffiche,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              if ((contact.poste ?? '').isNotEmpty)
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  contact.poste!,
+                  contact.nomAffiche,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: AromaColors.zinc500,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
-              if ((contact.telephone ?? '').isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.phone_outlined, size: 14),
-                    const SizedBox(width: 4),
-                    Text(contact.telephone!, style: const TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ],
-              if ((contact.email ?? '').isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const Icon(Icons.mail_outline, size: 14),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        contact.email!,
-                        style: const TextStyle(fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
+                if ((contact.poste ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      contact.poste!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AromaColors.zinc500,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                if ((contact.telephone ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _ContactInfoChip(
+                    icon: Icons.phone_outlined,
+                    text: contact.telephone!,
+                  ),
+                ],
+                if ((contact.email ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  _ContactInfoChip(
+                    icon: Icons.mail_outline,
+                    text: contact.email!,
+                  ),
+                ],
               ],
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactInfoChip extends StatelessWidget {
+  const _ContactInfoChip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: InterventionsUi.accent),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -595,6 +799,7 @@ class _ExchangeTile extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -615,18 +820,35 @@ class _ExchangeTile extends StatelessWidget {
                                 ),
                               ),
                               const Spacer(),
-                              Text(
-                                entry.dateAffiche,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AromaColors.zinc500,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    entry.dateAffiche,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AromaColors.zinc500,
+                                    ),
+                                  ),
+                                  if (formatAdcRessentiLabel(entry.ressenti) !=
+                                      null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Ressenti ${formatAdcRessentiLabel(entry.ressenti)}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: InterventionsUi.accent,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            entry.resume,
+                            adcExchangeResumeText(entry),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

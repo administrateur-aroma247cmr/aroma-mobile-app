@@ -91,13 +91,10 @@ List<AdcExchangeEntry> _actionTraceToHistorique(
   String agentFallback,
 ) {
   if (trace.isEmpty) return [];
-  return trace.asMap().entries.map((entry) {
-    final i = entry.key;
-    final e = entry.value;
+  return trace.asMap().entries.map((row) {
+    final i = row.key;
+    final e = row.value;
     final moyen = _traceMoyen(e.canal);
-    final text = (e.message ?? '').trim().isNotEmpty
-        ? e.message!.trim()
-        : '—';
     String? notesAppel;
     String? ressenti = _normalizeAdcRessenti(e.ressenti);
 
@@ -123,16 +120,27 @@ List<AdcExchangeEntry> _actionTraceToHistorique(
       }
     }
 
-    return AdcExchangeEntry(
+    final draft = AdcExchangeEntry(
       id: 'trace-$i-${e.date ?? ''}-${e.heure ?? ''}',
       dateIso: _traceDateIso(e),
       agent: (e.auteur ?? '').trim().isNotEmpty ? e.auteur!.trim() : agentFallback,
       moyen: moyen,
-      resume: _truncateHist(text, 160),
+      resume: '',
       contactLabel: (e.contact ?? '').trim().isNotEmpty ? e.contact!.trim() : '—',
       messageCorps: e.message,
       notesAppel: notesAppel,
       ressenti: ressenti,
+    );
+    return AdcExchangeEntry(
+      id: draft.id,
+      dateIso: draft.dateIso,
+      agent: draft.agent,
+      moyen: draft.moyen,
+      resume: adcExchangeResumeText(draft),
+      contactLabel: draft.contactLabel,
+      messageCorps: draft.messageCorps,
+      notesAppel: draft.notesAppel,
+      ressenti: draft.ressenti,
     );
   }).toList();
 }
@@ -195,5 +203,40 @@ List<AdcExchangeEntry> buildAdcExchangeHistory({
   }
 
   entries.sort((a, b) => b.dateIso.compareTo(a.dateIso));
-  return entries;
+  return entries
+      .map(
+        (e) => AdcExchangeEntry(
+          id: e.id,
+          dateIso: e.dateIso,
+          agent: e.agent,
+          moyen: e.moyen,
+          resume: adcExchangeResumeText(e),
+          contactLabel: e.contactLabel,
+          messageCorps: e.messageCorps,
+          notesAppel: e.notesAppel,
+          ressenti: e.ressenti,
+        ),
+      )
+      .toList();
+}
+
+/// Texte lisible pour affichage (évite le JSON brut des relances téléphone).
+String adcExchangeDisplayText(AdcExchangeEntry e) {
+  final notes = (e.notesAppel ?? '').trim();
+  if (notes.isNotEmpty) return notes;
+  final raw = (e.messageCorps ?? e.resume).trim();
+  if (raw.isEmpty) return '—';
+  if (raw.startsWith('{')) {
+    final parsed = _parsePhoneRelancePayload(raw);
+    if (parsed.message.isNotEmpty) return parsed.message;
+  }
+  return raw;
+}
+
+String adcExchangeResumeText(AdcExchangeEntry e) {
+  final display = adcExchangeDisplayText(e);
+  if (display != '—') return _truncateHist(display, 160);
+  final resume = e.resume.trim();
+  if (resume.isNotEmpty && !resume.startsWith('{')) return resume;
+  return '—';
 }
