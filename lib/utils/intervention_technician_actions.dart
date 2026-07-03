@@ -1,6 +1,6 @@
 import '../models/intervention.dart';
 
-/// Action principale sur une intervention en vue technicien terrain.
+/// Action principale sur une intervention (terrain + staff interventions).
 enum TechnicianInterventionAction { demarrer, creerRapport, none }
 
 const _terminalEtats = {
@@ -12,10 +12,9 @@ const _terminalEtats = {
   'Terminé',
 };
 
-const _rapportEtats = {
-  "Rapport d'intervention",
+/// Plus de modification possible (rapport définitivement envoyé ou clôturé).
+const _lockedEtats = {
   'Rapport envoyé',
-  'Traité',
   'Effectué',
   'Clos',
   'Terminé',
@@ -37,8 +36,11 @@ String? interventionEtatForTechnicianDisplay(Intervention intervention) {
 /// Détermine le bouton à afficher selon l'état courant (CRM).
 TechnicianInterventionAction technicianInterventionAction(String? etat) {
   final e = (etat ?? '').trim();
-  if (_rapportEtats.contains(e)) return TechnicianInterventionAction.none;
-  if (e == 'Démarré' || e == "En attente rapport d'intervention") {
+  if (_lockedEtats.contains(e)) return TechnicianInterventionAction.none;
+  if (e == 'Démarré' ||
+      e == "En attente rapport d'intervention" ||
+      e == "Rapport d'intervention" ||
+      e == 'Traité') {
     return TechnicianInterventionAction.creerRapport;
   }
   if (e.isEmpty || e == 'Planifié' || e == 'En cours') {
@@ -53,14 +55,20 @@ TechnicianInterventionAction technicianInterventionAction(String? etat) {
 String technicianInterventionActionLabel(
   TechnicianInterventionAction action, {
   bool hasRapportDraft = false,
+  String? etat,
 }) {
   switch (action) {
     case TechnicianInterventionAction.demarrer:
       return 'Démarrer';
     case TechnicianInterventionAction.creerRapport:
-      return hasRapportDraft
-          ? 'Continuer le rapport'
-          : 'Créer le rapport';
+      final e = (etat ?? '').trim();
+      if (hasRapportDraft ||
+          e == "Rapport d'intervention" ||
+          e == "En attente rapport d'intervention" ||
+          e == 'Traité') {
+        return 'Continuer le rapport';
+      }
+      return 'Créer le rapport';
     case TechnicianInterventionAction.none:
       return '';
   }

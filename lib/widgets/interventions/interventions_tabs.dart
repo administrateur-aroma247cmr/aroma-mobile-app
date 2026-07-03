@@ -252,9 +252,11 @@ class InterventionsCalendarTab extends StatefulWidget {
   const InterventionsCalendarTab({
     super.key,
     this.technicianFieldView = false,
+    this.fieldActions = false,
   });
 
   final bool technicianFieldView;
+  final bool fieldActions;
 
   @override
   State<InterventionsCalendarTab> createState() =>
@@ -362,7 +364,7 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
     final changed = await openInterventionDetail(
       context,
       intervention: i,
-      fieldActions: widget.technicianFieldView,
+      fieldActions: widget.fieldActions,
       technicianDisplay: widget.technicianFieldView,
     );
     if (changed == true && mounted) await _reload();

@@ -365,6 +365,7 @@ class _HeroCard extends StatelessWidget {
                       technicianInterventionActionLabel(
                         action,
                         hasRapportDraft: hasRapportDraft,
+                        etat: intervention.etat ?? intervention.etatApp,
                       ),
                     ),
             ),
