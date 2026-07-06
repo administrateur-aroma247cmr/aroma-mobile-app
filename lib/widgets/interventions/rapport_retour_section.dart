@@ -4,6 +4,8 @@ import '../../models/contact_client.dart';
 import '../../models/intervention_rapport_draft.dart';
 import '../../theme/aroma_theme.dart';
 import '../../utils/intervention_evaluation_constants.dart';
+import '../../utils/rapport_checklist.dart';
+import 'interventions_ui.dart';
 import 'rapport_photo_slot.dart';
 
 enum _ContactMode { existing, newContact }
@@ -335,20 +337,33 @@ class RapportLieuBlocSection extends StatelessWidget {
     required this.index,
     required this.lieu,
     required this.diffuseurs,
+    required this.checklist,
     required this.uploadingSlots,
     required this.observationController,
     required this.onLieuChanged,
     required this.onPhotoChanged,
+    required this.onTraiteChanged,
+    required this.onValueChanged,
+    required this.onAddAction,
+    required this.onAddExtra,
+    required this.onRemoveExtra,
   });
 
   final int index;
   final RapportLieuDraft lieu;
   final List<RapportDiffuseurDraft> diffuseurs;
+  final List<RapportCheckItem> checklist;
   final Set<String> uploadingSlots;
   final TextEditingController observationController;
   final ValueChanged<RapportLieuDraft> onLieuChanged;
   final void Function(String equipementId, String checkKey, RapportPhotoSlot slot)
       onPhotoChanged;
+  final void Function(String equipementId, bool traite) onTraiteChanged;
+  final void Function(String equipementId, String key, String value)
+      onValueChanged;
+  final void Function(String equipementId) onAddAction;
+  final void Function(String equipementId) onAddExtra;
+  final void Function(String equipementId, String key) onRemoveExtra;
 
   @override
   Widget build(BuildContext context) {
@@ -433,12 +448,26 @@ class RapportLieuBlocSection extends StatelessWidget {
                     _DiffuseurPhotosBlock(
                       index: i + 1,
                       draft: diffuseurs[i],
+                      checklist: checklist,
                       uploadingSlots: uploadingSlots,
                       onPhotoChanged: (key, slot) => onPhotoChanged(
                         diffuseurs[i].equipementId,
                         key,
                         slot,
                       ),
+                      onTraiteChanged: (traite) => onTraiteChanged(
+                        diffuseurs[i].equipementId,
+                        traite,
+                      ),
+                      onValueChanged: (key, value) => onValueChanged(
+                        diffuseurs[i].equipementId,
+                        key,
+                        value,
+                      ),
+                      onAddAction: () => onAddAction(diffuseurs[i].equipementId),
+                      onAddExtra: () => onAddExtra(diffuseurs[i].equipementId),
+                      onRemoveExtra: (key) =>
+                          onRemoveExtra(diffuseurs[i].equipementId, key),
                     ),
                   ],
                 ],
@@ -599,14 +628,26 @@ class _DiffuseurPhotosBlock extends StatefulWidget {
   const _DiffuseurPhotosBlock({
     required this.index,
     required this.draft,
+    required this.checklist,
     required this.uploadingSlots,
     required this.onPhotoChanged,
+    required this.onTraiteChanged,
+    required this.onValueChanged,
+    required this.onAddAction,
+    required this.onAddExtra,
+    required this.onRemoveExtra,
   });
 
   final int index;
   final RapportDiffuseurDraft draft;
+  final List<RapportCheckItem> checklist;
   final Set<String> uploadingSlots;
   final void Function(String checkKey, RapportPhotoSlot slot) onPhotoChanged;
+  final ValueChanged<bool> onTraiteChanged;
+  final void Function(String key, String value) onValueChanged;
+  final VoidCallback onAddAction;
+  final VoidCallback onAddExtra;
+  final void Function(String key) onRemoveExtra;
 
   @override
   State<_DiffuseurPhotosBlock> createState() => _DiffuseurPhotosBlockState();
@@ -615,122 +656,430 @@ class _DiffuseurPhotosBlock extends StatefulWidget {
 class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
   bool _expanded = true;
 
+  List<String> get _actionKeys =>
+      actionKeysSorted(widget.draft.photos.keys);
+
+  List<String> get _extraKeys => extraKeysSorted(widget.draft.photos.keys);
+
+  List<RapportCheckItem> get _fixedItems => fixedChecklistItems(widget.checklist)
+      .where((i) => i.key != extraKey)
+      .toList();
+
   int get _filledCount {
+    if (!widget.draft.traite) return 0;
     var n = 0;
-    for (final item in diffuseurCheckItems) {
+    for (final item in _fixedItems) {
       final slot = widget.draft.photos[item.key];
+      if (slot != null && slot.hasPhoto) n++;
+    }
+    for (final key in _actionKeys) {
+      final slot = widget.draft.photos[key];
       if (slot != null && slot.hasPhoto) n++;
     }
     return n;
   }
 
-  int get _totalCount => diffuseurCheckItems.length;
+  int get _totalCount {
+    if (!widget.draft.traite) return 0;
+    var n = requiredPhotoItems(widget.checklist).length;
+    if (checklistHasRepeatableActions(widget.checklist)) {
+      n += _actionKeys.isEmpty ? 1 : _actionKeys.length;
+    }
+    return n;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final traite = widget.draft.traite;
     final filled = _filledCount;
     final total = _totalCount;
     final progress = total > 0 ? filled / total : 0.0;
+    final hasExtras = checklistHasRepeatableExtras(widget.checklist);
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: traite ? const Color(0xFFF8FAFC) : const Color(0xFFF4F4F5),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AromaColors.zinc200),
+        border: Border.all(
+          color: traite ? AromaColors.zinc200 : AromaColors.zinc200.withValues(alpha: 0.6),
+        ),
       ),
       child: Column(
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(10),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Diffuseur ${widget.index}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF6366F1),
-                            ),
-                          ),
-                          Text(
-                            widget.draft.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Diffuseur ${widget.index}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: traite
+                              ? const Color(0xFF6366F1)
+                              : AromaColors.zinc500,
+                        ),
+                      ),
+                      Text(
+                        widget.draft.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: traite
+                              ? AromaColors.zinc900
+                              : AromaColors.zinc500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (traite) ...[
+                  Text(
+                    '$filled/$total',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AromaColors.zinc800,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 36,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 4,
+                        backgroundColor: AromaColors.zinc200,
+                        color: filled == total
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF0EA5E9),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$filled/$total',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AromaColors.zinc800,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    SizedBox(
-                      width: 36,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 4,
-                          backgroundColor: AromaColors.zinc200,
-                          color: filled == total
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFF0EA5E9),
+                  ),
+                  const SizedBox(width: 2),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(
+                          _expanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 20,
+                          color: AromaColors.zinc500,
                         ),
                       ),
                     ),
-                    Icon(
-                      _expanded
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      size: 20,
-                      color: AromaColors.zinc500,
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (_expanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            child: _TraiteSegment(
+              traite: traite,
+              onChanged: widget.onTraiteChanged,
+            ),
+          ),
+          if (traite && _expanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               child: RapportPhotoCompactList(
                 children: [
-                  for (final item in diffuseurCheckItems)
-                    RapportPhotoSlotWidget(
-                      compact: true,
-                      label: item.label,
-                      slot: widget.draft.photos[item.key] ?? RapportPhotoSlot(),
-                      uploading: widget.uploadingSlots.contains(
-                        '${widget.draft.equipementId}_${item.key}',
+                  for (final item in _fixedItems) ...[
+                      RapportPhotoSlotWidget(
+                        compact: true,
+                        label: item.label,
+                        slot: widget.draft.photos[item.key] ?? RapportPhotoSlot(),
+                        uploading: widget.uploadingSlots.contains(
+                          '${widget.draft.equipementId}_${item.key}',
+                        ),
+                        onChanged: (s) => widget.onPhotoChanged(item.key, s),
                       ),
-                      onChanged: (s) => widget.onPhotoChanged(item.key, s),
+                      if (item.numeric) ...[
+                        const SizedBox(height: 4),
+                        _NumericValueField(
+                          label: item.numericPlaceholder ?? 'Poids (g)',
+                          value: widget.draft.values[item.key] ?? '',
+                          onChanged: (v) =>
+                              widget.onValueChanged(item.key, v),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                    ],
+                  if (checklistHasRepeatableActions(widget.checklist)) ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Actions réalisées',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AromaColors.zinc800,
+                      ),
                     ),
+                    const SizedBox(height: 4),
+                    for (final key in _actionKeys)
+                      RapportPhotoSlotWidget(
+                        compact: true,
+                        label: actionLabelForKey(key),
+                        slot: widget.draft.photos[key] ?? RapportPhotoSlot(),
+                        uploading: widget.uploadingSlots.contains(
+                          '${widget.draft.equipementId}_$key',
+                        ),
+                        onChanged: (s) => widget.onPhotoChanged(key, s),
+                      ),
+                    _RapportAddBlockButton(
+                      label: 'Ajouter une action',
+                      icon: Icons.construction_outlined,
+                      onPressed: widget.onAddAction,
+                    ),
+                  ],
+                  if (hasExtras) ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Photos supplémentaires',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AromaColors.zinc800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    for (final key in _extraKeys)
+                      RapportPhotoSlotWidget(
+                        compact: true,
+                        label: extraLabelForKey(key),
+                        slot: widget.draft.photos[key] ?? RapportPhotoSlot(),
+                        uploading: widget.uploadingSlots.contains(
+                          '${widget.draft.equipementId}_$key',
+                        ),
+                        onChanged: (s) => widget.onPhotoChanged(key, s),
+                        onRemoveBlock: () => widget.onRemoveExtra(key),
+                      ),
+                    _RapportAddBlockButton(
+                      label: 'Ajouter une photo supplémentaire',
+                      icon: Icons.add_photo_alternate_outlined,
+                      onPressed: widget.onAddExtra,
+                    ),
+                  ],
                 ],
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+class _RapportAddBlockButton extends StatelessWidget {
+  const _RapportAddBlockButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(10),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: InterventionsUi.accentMuted,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: InterventionsUi.accent.withValues(alpha: 0.22),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(
+                        color: InterventionsUi.accentSoft,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: InterventionsUi.accent.withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 18,
+                      color: InterventionsUi.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: InterventionsUi.accent,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.add_rounded,
+                    size: 20,
+                    color: InterventionsUi.accent.withValues(alpha: 0.75),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TraiteSegment extends StatelessWidget {
+  const _TraiteSegment({
+    required this.traite,
+    required this.onChanged,
+  });
+
+  final bool traite;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: AromaColors.zinc200),
+        borderRadius: BorderRadius.circular(10),
+        color: AromaColors.inputFill,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _TraiteSegmentTab(
+              label: 'Traité',
+              icon: Icons.check_circle_outline_rounded,
+              selected: traite,
+              onTap: () => onChanged(true),
+            ),
+          ),
+          Expanded(
+            child: _TraiteSegmentTab(
+              label: 'Non traité',
+              icon: Icons.remove_circle_outline_rounded,
+              selected: !traite,
+              onTap: () => onChanged(false),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraiteSegmentTab extends StatelessWidget {
+  const _TraiteSegmentTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? Colors.white : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: selected
+                    ? const Color(0xFF0EA5E9)
+                    : AromaColors.zinc500,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? AromaColors.zinc900 : AromaColors.zinc500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NumericValueField extends StatelessWidget {
+  const _NumericValueField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      key: ValueKey('num_$label$value'),
+      initialValue: value,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: const TextStyle(fontSize: 13),
+      decoration: _fieldDecoration(label: label, dense: true),
+      onChanged: onChanged,
     );
   }
 }

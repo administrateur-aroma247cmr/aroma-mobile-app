@@ -80,6 +80,7 @@ class RapportPhotoSlotWidget extends StatefulWidget {
     this.gridTile = false,
     this.compact = false,
     this.uploading = false,
+    this.onRemoveBlock,
   });
 
   final String label;
@@ -88,6 +89,8 @@ class RapportPhotoSlotWidget extends StatefulWidget {
   final bool gridTile;
   final bool compact;
   final bool uploading;
+  /// Retire entièrement le bloc de la vue (ex. photos supplémentaires).
+  final VoidCallback? onRemoveBlock;
 
   @override
   State<RapportPhotoSlotWidget> createState() => _RapportPhotoSlotWidgetState();
@@ -313,7 +316,20 @@ class _RapportPhotoSlotWidgetState extends State<RapportPhotoSlotWidget> {
                   ),
                 ),
                 _observationToggle(),
-                if (widget.uploading)
+                if (widget.onRemoveBlock != null)
+                  IconButton(
+                    onPressed: widget.uploading ? null : widget.onRemoveBlock,
+                    tooltip: 'Supprimer',
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    color: const Color(0xFFDC2626),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  )
+                else if (widget.uploading)
                   const SizedBox(
                     width: 20,
                     height: 20,

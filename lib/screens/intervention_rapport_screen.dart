@@ -15,6 +15,7 @@ import '../services/intervention_rapport_upload_service.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_evaluation_constants.dart';
+import '../utils/rapport_checklist.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/interventions/rapport_photo_slot.dart';
 import '../widgets/interventions/rapport_retour_section.dart';
@@ -61,6 +62,63 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  List<RapportCheckItem> get _checklist =>
+      diffuseurChecklistForType(_intervention?.typeIntervention);
+
+  Map<String, RapportPhotoSlot> _initialPhotosMap({
+    required String? typeIntervention,
+    Map<String, RapportPhotoSlot>? existing,
+  }) {
+    final checklist = diffuseurChecklistForType(typeIntervention);
+    final merged = <String, RapportPhotoSlot>{};
+    for (final item in fixedChecklistItems(checklist)) {
+      merged[item.key] = existing?[item.key] ?? RapportPhotoSlot();
+    }
+    if (existing != null) {
+      for (final e in existing.entries) {
+        if (isActionKey(e.key) || isExtraKey(e.key)) {
+          merged[e.key] = e.value;
+        }
+      }
+    }
+    if (checklistHasRepeatableActions(checklist) &&
+        !merged.keys.any(isActionKey)) {
+      merged['action_1'] = RapportPhotoSlot();
+    }
+    return merged;
+  }
+
+  int _countPhotosFilled(InterventionRapportDraft draft) {
+    var n = draft.technicienPhoto.hasPhoto ? 1 : 0;
+    final checklist = _checklist;
+    for (final d in draft.diffuseurs) {
+      if (!d.traite) continue;
+      for (final item in requiredPhotoItems(checklist)) {
+        if (d.photos[item.key]?.hasPhoto == true) n++;
+      }
+      if (checklistHasRepeatableActions(checklist)) {
+        for (final key in actionKeysSorted(d.photos.keys)) {
+          if (d.photos[key]?.hasPhoto == true) n++;
+        }
+      }
+    }
+    return n;
+  }
+
+  int _countPhotosTotal(InterventionRapportDraft draft) {
+    var n = 1;
+    final checklist = _checklist;
+    for (final d in draft.diffuseurs) {
+      if (!d.traite) continue;
+      n += requiredPhotoItems(checklist).length;
+      if (checklistHasRepeatableActions(checklist)) {
+        final actions = actionKeysSorted(d.photos.keys);
+        n += actions.isEmpty ? 1 : actions.length;
+      }
+    }
+    return n;
   }
 
   String _rapportFolder(Intervention intervention) {
@@ -220,17 +278,16 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
                     typeDiffuseur: e.typeDiffuseur,
                     reference: e.reference,
                   ),
-                  photos: {
-                    for (final item in diffuseurCheckItems)
-                      item.key: RapportPhotoSlot(),
-                  },
+                  photos: _initialPhotosMap(
+                    typeIntervention: intervention.typeIntervention,
+                  ),
                 ),
               )
               .toList(),
         );
       } else {
         draft = _mergeLieux(draft, defaultLieux);
-        draft = _mergeDiffuseurs(draft, siteEquipements);
+        draft = _mergeDiffuseurs(draft, siteEquipements, intervention.typeIntervention);
       }
 
       if (!mounted) return;
@@ -275,6 +332,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   InterventionRapportDraft _mergeDiffuseurs(
     InterventionRapportDraft draft,
     List<EquipementClient> equipements,
+    String? typeIntervention,
   ) {
     final existing = {
       for (final d in draft.diffuseurs) d.equipementId: d,
@@ -289,7 +347,16 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       );
       final prev = existing[e.id];
       if (prev != null) {
-        merged.add(prev.copyWith(label: label, lieuKey: lieuKey));
+        merged.add(
+          prev.copyWith(
+            label: label,
+            lieuKey: lieuKey,
+            photos: _initialPhotosMap(
+              typeIntervention: typeIntervention,
+              existing: prev.photos,
+            ),
+          ),
+        );
         continue;
       }
       merged.add(
@@ -297,10 +364,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
           equipementId: e.id,
           lieuKey: lieuKey,
           label: label,
-          photos: {
-            for (final item in diffuseurCheckItems)
-              item.key: RapportPhotoSlot(),
-          },
+          photos: _initialPhotosMap(typeIntervention: typeIntervention),
         ),
       );
     }
@@ -407,6 +471,92 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     );
   }
 
+  void _setDiffuseurTraite(String equipementId, bool traite) {
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() {
+      _draft = draft.copyWith(
+        diffuseurs: draft.diffuseurs.map((d) {
+          if (d.equipementId != equipementId) return d;
+          return d.copyWith(traite: traite);
+        }).toList(),
+      );
+    });
+    _scheduleAutoSave();
+  }
+
+  void _setDiffuseurValue(String equipementId, String key, String value) {
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() {
+      _draft = draft.copyWith(
+        diffuseurs: draft.diffuseurs.map((d) {
+          if (d.equipementId != equipementId) return d;
+          final values = Map<String, String>.from(d.values);
+          if (value.trim().isEmpty) {
+            values.remove(key);
+          } else {
+            values[key] = value.trim();
+          }
+          return d.copyWith(values: values);
+        }).toList(),
+      );
+    });
+    _scheduleAutoSave();
+  }
+
+  void _addDiffuseurAction(String equipementId) {
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() {
+      _draft = draft.copyWith(
+        diffuseurs: draft.diffuseurs.map((d) {
+          if (d.equipementId != equipementId) return d;
+          final photos = Map<String, RapportPhotoSlot>.from(d.photos);
+          final key = nextActionKey(photos.keys);
+          photos[key] = RapportPhotoSlot();
+          return d.copyWith(photos: photos);
+        }).toList(),
+      );
+    });
+    _scheduleAutoSave();
+  }
+
+  void _addDiffuseurExtra(String equipementId) {
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() {
+      _draft = draft.copyWith(
+        diffuseurs: draft.diffuseurs.map((d) {
+          if (d.equipementId != equipementId) return d;
+          final photos = Map<String, RapportPhotoSlot>.from(d.photos);
+          final key = nextExtraKey(photos.keys);
+          photos[key] = RapportPhotoSlot();
+          return d.copyWith(photos: photos);
+        }).toList(),
+      );
+    });
+    _scheduleAutoSave();
+  }
+
+  void _removeDiffuseurExtra(String equipementId, String key) {
+    if (!isExtraKey(key)) return;
+    final draft = _draft;
+    if (draft == null) return;
+    setState(() {
+      _draft = draft.copyWith(
+        diffuseurs: draft.diffuseurs.map((d) {
+          if (d.equipementId != equipementId) return d;
+          final photos = Map<String, RapportPhotoSlot>.from(d.photos);
+          photos.remove(key);
+          return d.copyWith(photos: photos);
+        }).toList(),
+      );
+    });
+    _uploadingSlots.remove('${equipementId}_$key');
+    _scheduleAutoSave();
+  }
+
   List<String> _validationErrors() {
     final draft = _draft;
     if (draft == null) return ['Brouillon indisponible'];
@@ -414,13 +564,32 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     if (!draft.technicienPhoto.hasPhoto) {
       errors.add('Photo du technicien requise');
     }
-    for (final d in draft.diffuseurs) {
-      if (!d.traite) continue;
+    final treated = draft.diffuseurs.where((d) => d.traite).toList();
+    if (treated.isEmpty) {
+      errors.add('Au moins un diffuseur traité est requis');
+    }
+    final checklist = _checklist;
+    for (final d in treated) {
       final label = d.label.trim().isNotEmpty ? d.label : 'Diffuseur';
-      for (final item in diffuseurCheckItems) {
+      for (final item in requiredPhotoItems(checklist)) {
         final photo = d.photos[item.key];
         if (photo == null || !photo.hasPhoto) {
           errors.add('$label : ${item.label} — photo requise');
+        }
+        if (item.numeric) {
+          final v = (d.values[item.key] ?? '').trim();
+          if (v.isEmpty) {
+            errors.add('$label : ${item.label} — poids requis');
+          }
+        }
+      }
+      if (checklistHasRepeatableActions(checklist)) {
+        final hasAction = actionKeysSorted(d.photos.keys)
+            .any((k) => d.photos[k]?.hasPhoto == true);
+        if (!hasAction) {
+          errors.add(
+            '$label : Photos des actions réalisées — au moins une photo requise',
+          );
         }
       }
     }
@@ -455,10 +624,27 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     for (final d in draft.diffuseurs) {
       if (!d.traite) continue;
       final diffuseurLabel = d.label.trim().isNotEmpty ? d.label : 'Diffuseur';
-      for (final item in diffuseurCheckItems) {
+      final checklist = _checklist;
+      for (final item in fixedChecklistItems(checklist)) {
         final obs = (d.photos[item.key]?.observation ?? '').trim();
         if (obs.isNotEmpty) {
           blocks.add('[Photo — $diffuseurLabel — ${item.label}]\n$obs');
+        }
+      }
+      for (final key in actionKeysSorted(d.photos.keys)) {
+        final obs = (d.photos[key]?.observation ?? '').trim();
+        if (obs.isNotEmpty) {
+          blocks.add(
+            '[Photo — $diffuseurLabel — ${actionLabelForKey(key)}]\n$obs',
+          );
+        }
+      }
+      for (final key in extraKeysSorted(d.photos.keys)) {
+        final obs = (d.photos[key]?.observation ?? '').trim();
+        if (obs.isNotEmpty) {
+          blocks.add(
+            '[Photo — $diffuseurLabel — ${extraLabelForKey(key)}]\n$obs',
+          );
         }
       }
     }
@@ -531,22 +717,49 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       throw StateError('Photo du technicien non synchronisée — réessayez');
     }
 
+    final checklist = _checklist;
     final diffuseurs = <Map<String, dynamic>>[];
     for (final d in draft.diffuseurs) {
       if (!d.traite) continue;
       final label = d.label.trim().isNotEmpty ? d.label : 'Diffuseur';
       final photos = <String, String>{};
       final photosObservations = <String, String>{};
-      for (final item in diffuseurCheckItems) {
+
+      void addPhotoKey(String key) {
+        final slot = d.photos[key];
+        final galerieId = (slot?.galerieId ?? '').trim();
+        if (galerieId.isEmpty) return;
+        photos[key] = galerieId;
+        final obs = (slot?.observation ?? '').trim();
+        if (obs.isNotEmpty) photosObservations[key] = obs;
+      }
+
+      for (final item in requiredPhotoItems(checklist)) {
         final slot = d.photos[item.key];
         final galerieId = (slot?.galerieId ?? '').trim();
         if (galerieId.isEmpty) {
           throw StateError('$label : ${item.label} — photo non synchronisée');
         }
-        photos[item.key] = galerieId;
-        final obs = (slot?.observation ?? '').trim();
-        if (obs.isNotEmpty) photosObservations[item.key] = obs;
+        addPhotoKey(item.key);
       }
+      if (checklistHasRepeatableActions(checklist)) {
+        final actionKeys = actionKeysSorted(d.photos.keys)
+            .where((k) => d.photos[k]?.hasPhoto == true);
+        if (actionKeys.isEmpty) {
+          throw StateError(
+            '$label : Photos des actions réalisées — au moins une photo requise',
+          );
+        }
+        for (final key in actionKeys) {
+          addPhotoKey(key);
+        }
+      }
+      for (final key in extraKeysSorted(d.photos.keys)) {
+        if (d.photos[key]?.hasPhoto == true) {
+          addPhotoKey(key);
+        }
+      }
+
       diffuseurs.add({
         'equipement_id': d.equipementId,
         'label': label,
@@ -688,7 +901,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         SnackBar(
           content: Text(
             requireComplete
-                ? 'Rapport envoyé (${saved.countPhotosFilled()} photos) — visible sur le web'
+                ? 'Rapport envoyé (${_countPhotosFilled(saved)} photos) — visible sur le web'
                 : 'Brouillon enregistré',
           ),
           backgroundColor: const Color(0xFF16A34A),
@@ -752,8 +965,8 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   }
 
   Widget _buildBody(Intervention intervention, InterventionRapportDraft draft) {
-    final filled = draft.countPhotosFilled();
-    final total = draft.countPhotosTotal();
+    final filled = _countPhotosFilled(draft);
+    final total = _countPhotosTotal(draft);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -882,6 +1095,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
                 index: idx + 1,
                 lieu: l,
                 diffuseurs: diffuseurs,
+                checklist: _checklist,
                 uploadingSlots: _uploadingSlots,
                 observationController: _observationController(
                   l.lieuKey,
@@ -889,6 +1103,11 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
                 ),
                 onLieuChanged: (next) => _setLieuDraft(l.lieuKey, next),
                 onPhotoChanged: _setDiffuseurPhoto,
+                onTraiteChanged: _setDiffuseurTraite,
+                onValueChanged: _setDiffuseurValue,
+                onAddAction: _addDiffuseurAction,
+                onAddExtra: _addDiffuseurExtra,
+                onRemoveExtra: _removeDiffuseurExtra,
               ),
             );
           }),
