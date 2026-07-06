@@ -343,7 +343,6 @@ class RapportLieuBlocSection extends StatelessWidget {
     required this.onLieuChanged,
     required this.onPhotoChanged,
     required this.onTraiteChanged,
-    required this.onValueChanged,
     required this.onAddAction,
     required this.onAddExtra,
     required this.onRemoveExtra,
@@ -359,8 +358,6 @@ class RapportLieuBlocSection extends StatelessWidget {
   final void Function(String equipementId, String checkKey, RapportPhotoSlot slot)
       onPhotoChanged;
   final void Function(String equipementId, bool traite) onTraiteChanged;
-  final void Function(String equipementId, String key, String value)
-      onValueChanged;
   final void Function(String equipementId) onAddAction;
   final void Function(String equipementId) onAddExtra;
   final void Function(String equipementId, String key) onRemoveExtra;
@@ -458,11 +455,6 @@ class RapportLieuBlocSection extends StatelessWidget {
                       onTraiteChanged: (traite) => onTraiteChanged(
                         diffuseurs[i].equipementId,
                         traite,
-                      ),
-                      onValueChanged: (key, value) => onValueChanged(
-                        diffuseurs[i].equipementId,
-                        key,
-                        value,
                       ),
                       onAddAction: () => onAddAction(diffuseurs[i].equipementId),
                       onAddExtra: () => onAddExtra(diffuseurs[i].equipementId),
@@ -632,7 +624,6 @@ class _DiffuseurPhotosBlock extends StatefulWidget {
     required this.uploadingSlots,
     required this.onPhotoChanged,
     required this.onTraiteChanged,
-    required this.onValueChanged,
     required this.onAddAction,
     required this.onAddExtra,
     required this.onRemoveExtra,
@@ -644,7 +635,6 @@ class _DiffuseurPhotosBlock extends StatefulWidget {
   final Set<String> uploadingSlots;
   final void Function(String checkKey, RapportPhotoSlot slot) onPhotoChanged;
   final ValueChanged<bool> onTraiteChanged;
-  final void Function(String key, String value) onValueChanged;
   final VoidCallback onAddAction;
   final VoidCallback onAddExtra;
   final void Function(String key) onRemoveExtra;
@@ -656,21 +646,47 @@ class _DiffuseurPhotosBlock extends StatefulWidget {
 class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
   bool _expanded = true;
 
-  bool get _hasSortieHuile =>
-      (widget.draft.quantiteMl ?? 0) > 0 ||
-      (widget.draft.huileSenteur ?? '').trim().isNotEmpty;
+  bool get _hasSortieHuile => (widget.draft.quantiteMl ?? 0) > 0;
 
-  String get _sortieHuileLabel {
+  String get _sortieHuileSenteur {
     final huile = (widget.draft.huileSenteur ??
             widget.draft.huileDesignation ??
             '')
         .trim();
+    return huile.isNotEmpty ? huile : 'Huile';
+  }
+
+  String? get _sortieHuileQteLabel {
     final qte = widget.draft.quantiteMl;
-    if (huile.isEmpty && qte == null) return '';
-    final qteLabel = qte == null
-        ? ''
-        : ' — ${qte % 1 == 0 ? qte.toInt() : qte.toStringAsFixed(1)} ml';
-    return 'Huile : $huile$qteLabel';
+    if (qte == null || qte <= 0) return null;
+    final s = qte % 1 == 0 ? qte.toInt().toString() : qte.toStringAsFixed(1);
+    return '$s ml';
+  }
+
+  String? get _sortieSourceLabel {
+    switch ((widget.draft.sortieSource ?? '').trim()) {
+      case 'manuel':
+        return 'Manuel';
+      case 'sortie':
+        return 'Sorti';
+      case 'contractuel':
+        return 'Contractuel';
+      default:
+        return null;
+    }
+  }
+
+  Color get _sortieSourceColor {
+    switch ((widget.draft.sortieSource ?? '').trim()) {
+      case 'manuel':
+        return const Color(0xFF0EA5E9);
+      case 'sortie':
+        return const Color(0xFF16A34A);
+      case 'contractuel':
+        return const Color(0xFF8B5CF6);
+      default:
+        return AromaColors.zinc500;
+    }
   }
 
   List<String> get _actionKeys =>
@@ -755,16 +771,60 @@ class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
                         ),
                       ),
                       if (_hasSortieHuile) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          _sortieHuileLabel,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: traite
-                                ? const Color(0xFF4F46E5)
-                                : AromaColors.zinc400,
-                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.water_drop_outlined,
+                              size: 13,
+                              color: traite
+                                  ? const Color(0xFF4F46E5)
+                                  : AromaColors.zinc400,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                [
+                                  _sortieHuileSenteur,
+                                  if (_sortieHuileQteLabel != null)
+                                    _sortieHuileQteLabel!,
+                                ].join(' · '),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: traite
+                                      ? const Color(0xFF4F46E5)
+                                      : AromaColors.zinc400,
+                                ),
+                              ),
+                            ),
+                            if (_sortieSourceLabel != null) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _sortieSourceColor.withValues(
+                                    alpha: traite ? 0.12 : 0.08,
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  _sortieSourceLabel!,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: traite
+                                        ? _sortieSourceColor
+                                        : AromaColors.zinc400,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ],
@@ -845,16 +905,6 @@ class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
                         ),
                         onChanged: (s) => widget.onPhotoChanged(item.key, s),
                       ),
-                      if (item.numeric) ...[
-                        const SizedBox(height: 4),
-                        _NumericValueField(
-                          label: item.numericPlaceholder ?? 'Poids (g)',
-                          value: widget.draft.values[item.key] ?? '',
-                          onChanged: (v) =>
-                              widget.onValueChanged(item.key, v),
-                        ),
-                        const SizedBox(height: 2),
-                      ],
                     ],
                   if (checklistHasRepeatableActions(widget.checklist)) ...[
                     const SizedBox(height: 4),
@@ -1093,30 +1143,6 @@ class _TraiteSegmentTab extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _NumericValueField extends StatelessWidget {
-  const _NumericValueField({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      key: ValueKey('num_$label$value'),
-      initialValue: value,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      style: const TextStyle(fontSize: 13),
-      decoration: _fieldDecoration(label: label, dense: true),
-      onChanged: onChanged,
     );
   }
 }

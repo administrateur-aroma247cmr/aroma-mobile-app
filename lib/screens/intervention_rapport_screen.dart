@@ -247,8 +247,8 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     });
     try {
       final api = context.read<AuthProvider>().api;
-      final intervention = widget.interventionSummary ??
-          await api.getIntervention(widget.interventionId);
+      // Toujours recharger l’intervention : le résumé liste peut omettre sortie_huile_*.
+      final intervention = await api.getIntervention(widget.interventionId);
       final clientId = intervention.idClients;
       List<EquipementClient> equipements = [];
       if (clientId != null && clientId.isNotEmpty) {
@@ -547,26 +547,6 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     _scheduleAutoSave();
   }
 
-  void _setDiffuseurValue(String equipementId, String key, String value) {
-    final draft = _draft;
-    if (draft == null) return;
-    setState(() {
-      _draft = draft.copyWith(
-        diffuseurs: draft.diffuseurs.map((d) {
-          if (d.equipementId != equipementId) return d;
-          final values = Map<String, String>.from(d.values);
-          if (value.trim().isEmpty) {
-            values.remove(key);
-          } else {
-            values[key] = value.trim();
-          }
-          return d.copyWith(values: values);
-        }).toList(),
-      );
-    });
-    _scheduleAutoSave();
-  }
-
   void _addDiffuseurAction(String equipementId) {
     final draft = _draft;
     if (draft == null) return;
@@ -637,12 +617,6 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         final photo = d.photos[item.key];
         if (photo == null || !photo.hasPhoto) {
           errors.add('$label : ${item.label} — photo requise');
-        }
-        if (item.numeric) {
-          final v = (d.values[item.key] ?? '').trim();
-          if (v.isEmpty) {
-            errors.add('$label : ${item.label} — poids requis');
-          }
         }
       }
       if (checklistHasRepeatableActions(checklist)) {
@@ -1197,7 +1171,6 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
                 onLieuChanged: (next) => _setLieuDraft(l.lieuKey, next),
                 onPhotoChanged: _setDiffuseurPhoto,
                 onTraiteChanged: _setDiffuseurTraite,
-                onValueChanged: _setDiffuseurValue,
                 onAddAction: _addDiffuseurAction,
                 onAddExtra: _addDiffuseurExtra,
                 onRemoveExtra: _removeDiffuseurExtra,

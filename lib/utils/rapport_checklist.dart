@@ -13,16 +13,12 @@ class RapportCheckItem {
     required this.key,
     required this.label,
     this.required = true,
-    this.numeric = false,
-    this.numericPlaceholder,
     this.repeatable = false,
   });
 
   final String key;
   final String label;
   final bool required;
-  final bool numeric;
-  final String? numericPlaceholder;
   final bool repeatable;
 }
 
@@ -56,14 +52,10 @@ final _refillItems = _withExtra(const [
   RapportCheckItem(
     key: 'pesee_etat',
     label: 'Photo pesée bouteille en l’état',
-    numeric: true,
-    numericPlaceholder: 'Poids (g)',
   ),
   RapportCheckItem(
     key: 'pesee_recharge',
     label: 'Photo pesée avec la recharge (poids mis en avant)',
-    numeric: true,
-    numericPlaceholder: 'Poids (g)',
   ),
   RapportCheckItem(
     key: 'programmation',

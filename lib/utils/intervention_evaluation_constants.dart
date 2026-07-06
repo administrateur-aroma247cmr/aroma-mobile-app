@@ -4,14 +4,10 @@ class DiffuseurCheckItemDef {
   const DiffuseurCheckItemDef({
     required this.key,
     required this.label,
-    this.numeric = false,
-    this.numericPlaceholder,
   });
 
   final String key;
   final String label;
-  final bool numeric;
-  final String? numericPlaceholder;
 }
 
 const diffuseurCheckItems = <DiffuseurCheckItemDef>[
@@ -30,14 +26,10 @@ const diffuseurCheckItems = <DiffuseurCheckItemDef>[
   DiffuseurCheckItemDef(
     key: 'pesee_etat',
     label: 'Photo pesée bouteille en l’état',
-    numeric: true,
-    numericPlaceholder: 'Poids (g)',
   ),
   DiffuseurCheckItemDef(
     key: 'pesee_recharge',
     label: 'Photo pesée avec la recharge (poids mis en avant)',
-    numeric: true,
-    numericPlaceholder: 'Poids (g)',
   ),
   DiffuseurCheckItemDef(
     key: 'programmation',
