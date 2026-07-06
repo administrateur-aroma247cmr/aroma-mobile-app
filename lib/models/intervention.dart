@@ -1,3 +1,7 @@
+import 'materiel_sortie_ligne.dart';
+import 'sortie_huile_diffuseur.dart';
+import 'sortie_huile_totale.dart';
+
 class Intervention {
   Intervention({
     required this.id,
@@ -17,6 +21,10 @@ class Intervention {
     this.etat,
     this.etatApp,
     this.auteur,
+    this.sortieHuileParDiffuseur = const [],
+    this.sortieHuileTotale = const [],
+    this.sortieHuileMode,
+    this.materielSortie = const [],
   });
 
   final String id;
@@ -38,6 +46,21 @@ class Intervention {
   /// État affiché app / terrain (`etat_app` API).
   final String? etatApp;
   final String? auteur;
+  final List<SortieHuileDiffuseur> sortieHuileParDiffuseur;
+  final List<SortieHuileTotale> sortieHuileTotale;
+  /// `total` | `diffuseur` | `contractuel`
+  final String? sortieHuileMode;
+  final List<MaterielSortieLigne> materielSortie;
+
+  bool get hasSortieStock =>
+      materielSortie.isNotEmpty ||
+      sortieHuileParDiffuseur.isNotEmpty ||
+      sortieHuileTotale.isNotEmpty;
+
+  bool get showHuileParDiffuseur =>
+      sortieHuileMode == 'diffuseur' || sortieHuileMode == 'contractuel';
+
+  bool get showHuileTotale => sortieHuileMode == 'total';
 
   /// Libellé état pour l’UI (repli `etat_app` → `etat`).
   String? get etatAffiche => etat ?? etatApp;
@@ -81,6 +104,10 @@ class Intervention {
       etat: _str(m['etat']),
       etatApp: _str(m['etat_app']),
       auteur: _str(m['auteur']),
+      sortieHuileParDiffuseur: parseSortieHuileParDiffuseur(m['sortie_huile_par_diffuseur']),
+      sortieHuileTotale: parseSortieHuileTotale(m['sortie_huile_totale']),
+      sortieHuileMode: parseSortieHuileMode(m['sortie_huile_mode']),
+      materielSortie: parseMaterielSortie(m['materiel_sortie']),
     );
   }
 }

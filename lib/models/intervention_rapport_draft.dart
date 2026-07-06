@@ -218,6 +218,10 @@ class RapportDiffuseurDraft {
     required this.label,
     this.lieuKey,
     this.traite = true,
+    this.huileSenteur,
+    this.huileDesignation,
+    this.quantiteMl,
+    this.sortieSource,
     Map<String, RapportPhotoSlot>? photos,
     Map<String, String>? values,
   })  : photos = photos ?? {},
@@ -228,6 +232,11 @@ class RapportDiffuseurDraft {
   /// Emplacement du site (`site` si non renseigné).
   final String? lieuKey;
   final bool traite;
+  /// Huile à sortir (lecture seule, depuis l’API intervention).
+  final String? huileSenteur;
+  final String? huileDesignation;
+  final double? quantiteMl;
+  final String? sortieSource;
   final Map<String, RapportPhotoSlot> photos;
   final Map<String, String> values;
 
@@ -235,6 +244,10 @@ class RapportDiffuseurDraft {
     String? label,
     String? lieuKey,
     bool? traite,
+    String? huileSenteur,
+    String? huileDesignation,
+    double? quantiteMl,
+    String? sortieSource,
     Map<String, RapportPhotoSlot>? photos,
     Map<String, String>? values,
   }) {
@@ -243,6 +256,10 @@ class RapportDiffuseurDraft {
       label: label ?? this.label,
       lieuKey: lieuKey ?? this.lieuKey,
       traite: traite ?? this.traite,
+      huileSenteur: huileSenteur ?? this.huileSenteur,
+      huileDesignation: huileDesignation ?? this.huileDesignation,
+      quantiteMl: quantiteMl ?? this.quantiteMl,
+      sortieSource: sortieSource ?? this.sortieSource,
       photos: photos ?? Map<String, RapportPhotoSlot>.from(this.photos),
       values: values ?? Map<String, String>.from(this.values),
     );
@@ -253,6 +270,10 @@ class RapportDiffuseurDraft {
         'label': label,
         if (lieuKey != null) 'lieu_key': lieuKey,
         'traite': traite,
+        if (huileSenteur != null) 'huile_senteur': huileSenteur,
+        if (huileDesignation != null) 'huile_designation': huileDesignation,
+        if (quantiteMl != null) 'quantite_ml': quantiteMl,
+        if (sortieSource != null) 'sortie_source': sortieSource,
         'photos': photos.map((k, v) => MapEntry(k, v.toJson())),
         'values': values,
       };
@@ -277,11 +298,21 @@ class RapportDiffuseurDraft {
         if (v != null && v.isNotEmpty) values[e.key.toString()] = v;
       }
     }
+    String? strField(dynamic v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
     return RapportDiffuseurDraft(
       equipementId: '${m['equipement_id']}',
       label: '${m['label'] ?? ''}',
       lieuKey: m['lieu_key']?.toString(),
       traite: m['traite'] != false,
+      huileSenteur: strField(m['huile_senteur']),
+      huileDesignation: strField(m['huile_designation']),
+      quantiteMl: m['quantite_ml'] == null
+          ? null
+          : (m['quantite_ml'] is num
+              ? (m['quantite_ml'] as num).toDouble()
+              : double.tryParse('${m['quantite_ml']}')),
+      sortieSource: strField(m['sortie_source']),
       photos: photos,
       values: values,
     );

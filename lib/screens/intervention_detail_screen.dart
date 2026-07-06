@@ -8,6 +8,8 @@ import '../utils/format_utils.dart';
 import '../utils/intervention_technician_actions.dart';
 import '../services/intervention_rapport_store.dart';
 import '../widgets/interventions/interventions_ui.dart';
+import '../widgets/interventions/intervention_materiel_sorti_card.dart';
+import '../widgets/interventions/intervention_sortie_huile_card.dart';
 import 'intervention_rapport_screen.dart';
 
 class InterventionDetailScreen extends StatefulWidget {
@@ -206,6 +208,20 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
               rows: [
                 _InfoRow('', i.description!.trim(), multiline: true),
               ],
+            ),
+          ],
+          if (i.materielSortie.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            InterventionMaterielSortiCard(lignes: i.materielSortie),
+          ],
+          if (i.sortieHuileMode != null &&
+              (i.sortieHuileTotale.isNotEmpty ||
+                  i.sortieHuileParDiffuseur.isNotEmpty)) ...[
+            const SizedBox(height: 12),
+            InterventionSortieHuileCard(
+              mode: i.sortieHuileMode,
+              totale: i.sortieHuileTotale,
+              parDiffuseur: i.sortieHuileParDiffuseur,
             ),
           ],
         ],

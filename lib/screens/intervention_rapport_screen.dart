@@ -8,6 +8,7 @@ import '../models/contact_client.dart';
 import '../models/equipement_client.dart';
 import '../models/intervention.dart';
 import '../models/intervention_rapport_draft.dart';
+import '../models/sortie_huile_diffuseur.dart';
 import '../providers/auth_provider.dart';
 import '../services/aroma_api.dart';
 import '../services/intervention_rapport_store.dart';
@@ -16,6 +17,7 @@ import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_evaluation_constants.dart';
 import '../utils/rapport_checklist.dart';
+import '../utils/sortie_huile_diffuseur_merge.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/interventions/rapport_photo_slot.dart';
 import '../widgets/interventions/rapport_retour_section.dart';
@@ -119,6 +121,47 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       }
     }
     return n;
+  }
+
+  String _formatMl(double qte) {
+    final s = qte % 1 == 0 ? qte.toInt().toString() : qte.toStringAsFixed(1);
+    return '$s ml';
+  }
+
+  String? _headerSortieHuileLabel(Intervention intervention) {
+    final Iterable<String> labels;
+    final double totalMl;
+
+    if (intervention.showHuileTotale &&
+        intervention.sortieHuileTotale.isNotEmpty) {
+      final items = intervention.sortieHuileTotale
+          .where((s) => s.quantiteMl > 0)
+          .toList();
+      if (items.isEmpty) return null;
+      labels = items.map((s) => s.label);
+      totalMl = items.fold<double>(0, (sum, s) => sum + s.quantiteMl);
+    } else if (intervention.showHuileParDiffuseur &&
+        intervention.sortieHuileParDiffuseur.isNotEmpty) {
+      final items = intervention.sortieHuileParDiffuseur
+          .where((s) => s.quantiteMl > 0)
+          .toList();
+      if (items.isEmpty) return null;
+      labels = items.map((s) => s.huileLabel);
+      totalMl = items.fold<double>(0, (sum, s) => sum + s.quantiteMl);
+    } else {
+      return null;
+    }
+
+    final senteurs = <String>[];
+    final seen = <String>{};
+    for (final label in labels) {
+      final t = label.trim();
+      if (t.isEmpty || t == 'Huile') continue;
+      if (seen.add(t)) senteurs.add(t);
+    }
+    final senteurPart =
+        senteurs.isEmpty ? 'Huile' : senteurs.join(', ');
+    return '$senteurPart · ${_formatMl(totalMl)}';
   }
 
   String _rapportFolder(Intervention intervention) {
@@ -287,8 +330,21 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         );
       } else {
         draft = _mergeLieux(draft, defaultLieux);
-        draft = _mergeDiffuseurs(draft, siteEquipements, intervention.typeIntervention);
+        draft = _mergeDiffuseurs(
+          draft,
+          siteEquipements,
+          intervention.typeIntervention,
+          intervention.showHuileParDiffuseur
+              ? intervention.sortieHuileParDiffuseur
+              : const [],
+        );
       }
+      draft = applySortieHuileToDiffuseurs(
+        draft,
+        intervention.showHuileParDiffuseur
+            ? intervention.sortieHuileParDiffuseur
+            : const [],
+      );
 
       if (!mounted) return;
       setState(() {
@@ -333,6 +389,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     InterventionRapportDraft draft,
     List<EquipementClient> equipements,
     String? typeIntervention,
+    List<SortieHuileDiffuseur> sorties,
   ) {
     final existing = {
       for (final d in draft.diffuseurs) d.equipementId: d,
@@ -359,11 +416,16 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         );
         continue;
       }
+      final sortie = sortieHuileForEquipement(e.id, sorties);
       merged.add(
         RapportDiffuseurDraft(
           equipementId: e.id,
           lieuKey: lieuKey,
           label: label,
+          huileSenteur: sortie.huileSenteur,
+          huileDesignation: sortie.huileDesignation,
+          quantiteMl: sortie.quantiteMl,
+          sortieSource: sortie.sortieSource,
           photos: _initialPhotosMap(typeIntervention: typeIntervention),
         ),
       );
@@ -967,6 +1029,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   Widget _buildBody(Intervention intervention, InterventionRapportDraft draft) {
     final filled = _countPhotosFilled(draft);
     final total = _countPhotosTotal(draft);
+    final huileHeader = _headerSortieHuileLabel(intervention);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -980,13 +1043,36 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                intervention.ref ?? 'Intervention',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      intervention.ref ?? 'Intervention',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (huileHeader != null) ...[
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        huileHeader,
+                        textAlign: TextAlign.right,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -1005,23 +1091,30 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: total > 0 ? filled / total : 0,
-                  minHeight: 6,
-                  backgroundColor: Colors.white24,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '$filled / $total photos',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: total > 0 ? filled / total : 0,
+                        minHeight: 6,
+                        backgroundColor: Colors.white24,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '$filled / $total photos',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

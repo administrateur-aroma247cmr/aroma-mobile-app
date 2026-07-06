@@ -191,6 +191,11 @@ class EntityScopeAppBarAction extends StatelessWidget {
 mixin EntityScopeReloadMixin<T extends StatefulWidget> on State<T> {
   String? _entityWatch;
 
+  /// À appeler avant un chargement initial pour éviter un double reload au 1er build.
+  void primeEntityScopeWatch(String? entityCode) {
+    _entityWatch = entityCode;
+  }
+
   void watchEntityScope(VoidCallback onEntityChanged) {
     final code = context.watch<AuthProvider>().currentEntityCode;
     if (_entityWatch != code) {

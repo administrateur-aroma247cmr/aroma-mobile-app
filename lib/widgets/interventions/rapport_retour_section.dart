@@ -656,6 +656,23 @@ class _DiffuseurPhotosBlock extends StatefulWidget {
 class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
   bool _expanded = true;
 
+  bool get _hasSortieHuile =>
+      (widget.draft.quantiteMl ?? 0) > 0 ||
+      (widget.draft.huileSenteur ?? '').trim().isNotEmpty;
+
+  String get _sortieHuileLabel {
+    final huile = (widget.draft.huileSenteur ??
+            widget.draft.huileDesignation ??
+            '')
+        .trim();
+    final qte = widget.draft.quantiteMl;
+    if (huile.isEmpty && qte == null) return '';
+    final qteLabel = qte == null
+        ? ''
+        : ' — ${qte % 1 == 0 ? qte.toInt() : qte.toStringAsFixed(1)} ml';
+    return 'Huile : $huile$qteLabel';
+  }
+
   List<String> get _actionKeys =>
       actionKeysSorted(widget.draft.photos.keys);
 
@@ -737,32 +754,52 @@ class _DiffuseurPhotosBlockState extends State<_DiffuseurPhotosBlock> {
                               : AromaColors.zinc500,
                         ),
                       ),
+                      if (_hasSortieHuile) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _sortieHuileLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: traite
+                                ? const Color(0xFF4F46E5)
+                                : AromaColors.zinc400,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 if (traite) ...[
-                  Text(
-                    '$filled/$total',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AromaColors.zinc800,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: 36,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 4,
-                        backgroundColor: AromaColors.zinc200,
-                        color: filled == total
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFF0EA5E9),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$filled/$total',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AromaColors.zinc800,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                      SizedBox(
+                        width: 36,
+                        height: 4,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 4,
+                            backgroundColor: AromaColors.zinc200,
+                            color: filled == total
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFF0EA5E9),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(width: 2),
                   Material(

@@ -13,6 +13,12 @@ bool isEntityScopeAll(String? code) {
   return normalizeEntityCode(code ?? '') == entityScopeAll;
 }
 
+/// Aligné sur le CRM web (`comptesEntity.ts` / `facturationStatuts.ts`).
+bool isCivEntityCode(String? entityCode) {
+  final ec = normalizeEntityCode(entityCode ?? '');
+  return ec == 'CI';
+}
+
 bool canShowEntityScopeAll(
   List<String> entityCodes, {
   required bool canEntityScopeAllFlag,

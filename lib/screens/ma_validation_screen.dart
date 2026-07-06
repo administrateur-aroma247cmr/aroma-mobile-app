@@ -7,7 +7,9 @@ import '../models/demande_a_payer.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/document_urls.dart';
+import '../utils/entity_scope.dart';
 import '../utils/format_utils.dart';
+import '../widgets/entity_scope_selector.dart';
 import '../widgets/modern_bottom_sheet.dart';
 
 const _statutSoumisDemande = 'Soumis en attente de validations';
@@ -16,16 +18,48 @@ const _statutNonValide = 'Non Valide';
 const _statutPaye = 'Paye';
 const _statutNonEffectue = 'Non effectué';
 
-/// Fenêtre calendaire locale J-7 à J (inclus), alignée sur `hierarchieDemandesDateWindowBounds` du CRM web.
-({String min, String max}) _hierarchieDemandesDateWindowBounds() {
+/// Fenêtre calendaire locale — alignée sur `hierarchieDemandesDateWindowBounds` (CRM web).
+const _hierarchieDemandesJoursAvantCm = 30;
+const _hierarchieDemandesJoursApres = 2;
+const _civHierarchieDemandesJoursAvant = 180;
+const _civHierarchieDemandesMaxDate = '2026-07-15';
+
+({String min, String max}) _hierarchieDemandesDateWindowBounds({
+  required bool isCiv,
+}) {
   final now = DateTime.now();
-  final maxD = DateTime(now.year, now.month, now.day);
-  final minD = maxD.subtract(const Duration(days: 7));
+  final y = now.year;
+  final mo = now.month;
+  final da = now.day;
+  final joursAvant =
+      isCiv ? _civHierarchieDemandesJoursAvant : _hierarchieDemandesJoursAvantCm;
+  final minD = DateTime(y, mo, da - joursAvant);
+  final jPlus2 = DateTime(y, mo, da + _hierarchieDemandesJoursApres);
+  final DateTime maxD;
+  if (isCiv) {
+    final capParts = _civHierarchieDemandesMaxDate.split('-');
+    final civCapEnd = DateTime(
+      int.parse(capParts[0]),
+      int.parse(capParts[1]),
+      int.parse(capParts[2]),
+    );
+    final todayLocal = DateTime(y, mo, da);
+    maxD = !todayLocal.isAfter(civCapEnd) ? civCapEnd : jPlus2;
+  } else {
+    maxD = jPlus2;
+  }
   String fmt(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
   return (min: fmt(minD), max: fmt(maxD));
+}
+
+String _hierarchieDemandesFenetreLabel({required bool isCiv}) {
+  if (isCiv) {
+    return 'J-180 au 15/07/2026 (puis J+2 après cette date)';
+  }
+  return 'J-30 à J+2';
 }
 
 String _fmtFcfa(num v) => '${v.round()} F CFA';
@@ -92,7 +126,7 @@ class MaValidationScreen extends StatefulWidget {
 }
 
 class _MaValidationScreenState extends State<MaValidationScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, EntityScopeReloadMixin {
   late TabController _tabs;
 
   bool _loading = true;
@@ -124,6 +158,7 @@ class _MaValidationScreenState extends State<MaValidationScreen>
         Navigator.of(context).pop();
         return;
       }
+      primeEntityScopeWatch(auth.currentEntityCode);
       _reload();
     });
   }
@@ -141,19 +176,25 @@ class _MaValidationScreenState extends State<MaValidationScreen>
       _loadError = null;
     });
     try {
+      // 3 appels max (évite d'épuiser le pool SQL backend : 5+2 connexions).
       final results = await Future.wait([
-        api.listDemandesAPayer(statut: _statutSoumisDemande),
+        api.listDemandesAPayer(),
         api.listBonsCommandeFournisseur(),
         api.listBonsCommandeInterne(),
-        api.listDemandesAPayer(statut: _statutValideHierarchie),
-        api.listDemandesAPayer(statut: _statutNonValide),
-        api.listDemandesAPayer(statut: _statutPaye),
-        api.listDemandesAPayer(statut: _statutNonEffectue),
       ]);
       if (!mounted) return;
+      final allDemandes = results[0] as List<DemandeAPayer>;
+      final demandesTabMap = <String, DemandeAPayer>{};
       final historiqueMap = <String, DemandeAPayer>{};
-      for (final list in results.sublist(3)) {
-        for (final d in list as List<DemandeAPayer>) {
+      for (final d in allDemandes) {
+        final s = d.statut ?? '';
+        if (s == _statutSoumisDemande || s == _statutNonEffectue) {
+          demandesTabMap[d.id] = d;
+        }
+        if (s == _statutValideHierarchie ||
+            s == _statutNonValide ||
+            s == _statutPaye ||
+            s == _statutNonEffectue) {
           historiqueMap[d.id] = d;
         }
       }
@@ -164,7 +205,7 @@ class _MaValidationScreenState extends State<MaValidationScreen>
           return db.compareTo(da);
         });
       setState(() {
-        _demandesRaw = results[0] as List<DemandeAPayer>;
+        _demandesRaw = demandesTabMap.values.toList();
         _bonsF = results[1] as List<BonCommandeFournisseurLite>;
         _bonsI = results[2] as List<BonCommandeInterneLite>;
         _historiqueRaw = historique;
@@ -183,7 +224,9 @@ class _MaValidationScreenState extends State<MaValidationScreen>
   }
 
   List<DemandeAPayer> get _demandesInWindow {
-    final bounds = _hierarchieDemandesDateWindowBounds();
+    final auth = context.read<AuthProvider>();
+    final isCiv = isCivEntityCode(auth.currentEntityCode);
+    final bounds = _hierarchieDemandesDateWindowBounds(isCiv: isCiv);
     return _demandesRaw.where((d) {
       final k = d.dateADecaisser;
       if (k == null) return false;
@@ -651,7 +694,11 @@ class _MaValidationScreenState extends State<MaValidationScreen>
 
   @override
   Widget build(BuildContext context) {
-    final window = _hierarchieDemandesDateWindowBounds();
+    watchEntityScope(_reload);
+    final auth = context.watch<AuthProvider>();
+    final isCiv = isCivEntityCode(auth.currentEntityCode);
+    final window = _hierarchieDemandesDateWindowBounds(isCiv: isCiv);
+    final fenetreLabel = _hierarchieDemandesFenetreLabel(isCiv: isCiv);
     final selectable = _filteredDemandes
         .where((d) => d.statut == _statutSoumisDemande)
         .toList();
@@ -732,7 +779,7 @@ class _MaValidationScreenState extends State<MaValidationScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Demandes « $_statutSoumisDemande » — fenêtre ${_formatDateFr(window.min)} → ${_formatDateFr(window.max)}',
+                                      'Demandes soumises / non effectuées — $fenetreLabel (${_formatDateFr(window.min)} → ${_formatDateFr(window.max)})',
                                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                             color: AromaColors.zinc500,
                                           ),
@@ -751,7 +798,7 @@ class _MaValidationScreenState extends State<MaValidationScreen>
                                       Padding(
                                         padding: const EdgeInsets.only(top: 12),
                                         child: Text(
-                                          'Aucune demande dans la fenêtre (date à décaisser entre J-7 et aujourd’hui).',
+                                          'Aucune demande dans la fenêtre (date à décaisser hors $fenetreLabel).',
                                           style: TextStyle(color: AromaColors.zinc500),
                                         ),
                                       ),

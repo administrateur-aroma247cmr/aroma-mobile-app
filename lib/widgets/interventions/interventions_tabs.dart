@@ -117,7 +117,7 @@ class _InterventionsListTabState extends State<InterventionsListTab>
         rows = filterInterventionsForTechnician(
           rows,
           ctx,
-          apiFilteredByTechnicien: techIdForApi != null,
+          apiFilteredByTechnicien: false,
         );
       }
       if (!mounted) return;
@@ -319,7 +319,7 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
         rows = filterInterventionsForTechnician(
           rows,
           ctx,
-          apiFilteredByTechnicien: techIdForApi != null,
+          apiFilteredByTechnicien: false,
         );
       }
       if (!mounted) return;

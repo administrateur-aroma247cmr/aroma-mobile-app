@@ -22,7 +22,7 @@ bool filterInterventionsByTechnicianAssignment(AuthProvider auth) {
   return isTechnicianFieldView(auth);
 }
 
-/// Filtre client après chargement API (repli si pas de `id_technicien` API).
+/// Filtre client après chargement API (secours si le backend ne filtre pas).
 List<Intervention> filterInterventionsForTechnician(
   List<Intervention> rows,
   TechnicianMatchContext ctx, {
