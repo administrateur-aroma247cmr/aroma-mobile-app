@@ -129,6 +129,27 @@ bool isInterventionAssignedToTechnician(
   return false;
 }
 
+/// Contexte technicien si l'utilisateur a une fiche collaborateur (sinon null).
+Future<TechnicianMatchContext?> tryBuildTechnicianMatchContext(
+  AuthProvider auth,
+) async {
+  if (auth.collaborateurId == null) return null;
+  try {
+    return await buildTechnicianMatchContext(auth);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Démarrer / créer / continuer le rapport : réservé au technicien assigné.
+bool canPerformTechnicianFieldActions(
+  Intervention intervention,
+  TechnicianMatchContext? ctx,
+) {
+  if (ctx == null) return false;
+  return isInterventionAssignedToTechnician(intervention, ctx);
+}
+
 bool isReparationAssignedToTechnician(
   Reparation reparation,
   TechnicianMatchContext ctx,

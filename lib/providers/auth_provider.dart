@@ -278,19 +278,40 @@ class AuthProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> _syncEntityScope() async {
+  Future<void> _persistEntityCode(String code) async {
+    _currentEntityCode = code;
+    await _entityStore.write(code);
+    _wireApi();
+  }
+
+  Future<void> _syncEntityScope({String? preferredEntityCode}) async {
     final stored = await _entityStore.read();
     final synced = syncEntityWithAllowed(
       stored: stored,
       allowed: entityCodes,
       canEntityScopeAllFlag: canEntityScopeAll,
+      preferredEntityCode:
+          preferredEntityCode ?? _me?['default_entity_code'] as String?,
     );
     if (synced != null && synced != _currentEntityCode) {
-      _currentEntityCode = synced;
-      await _entityStore.write(synced);
-      _wireApi();
+      await _persistEntityCode(synced);
     } else if (synced != null) {
       _currentEntityCode = synced;
+    }
+  }
+
+  Future<void> _applyEntityScopeOnLogin(Map<String, dynamic> loginData) async {
+    final allowed = normalizeEntityCodes(loginData['entity_codes']);
+    if (allowed.isEmpty) return;
+    final canAll = loginData['can_entity_scope_all'] == true;
+    final defaultCode = loginData['default_entity_code'] as String?;
+    final code = applyEntityScopeOnLogin(
+      allowed: allowed,
+      canEntityScopeAllFlag: canAll,
+      defaultEntityCode: defaultCode,
+    );
+    if (code != null) {
+      await _persistEntityCode(code);
     }
   }
 
@@ -326,6 +347,7 @@ class AuthProvider extends ChangeNotifier {
         await _tokenStore.write(_token!);
         _wireApi();
         _resetTechnicienCache();
+        await _applyEntityScopeOnLogin(data);
         try {
           _me = await _api.me();
           await _afterMeLoaded();

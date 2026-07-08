@@ -137,6 +137,9 @@ class _InterventionsListTabState extends State<InterventionsListTab>
   List<Intervention> get _filtered {
     final q = _search.trim().toLowerCase();
     return _rows.where((i) {
+      if (widget.technicianDisplay && !isInterventionVisibleForTechnicianTerrain(i)) {
+        return false;
+      }
       if (q.isEmpty) return true;
       return i.titreAffiche.toLowerCase().contains(q) ||
           (i.clientNom ?? '').toLowerCase().contains(q) ||
@@ -321,6 +324,9 @@ class _InterventionsCalendarTabState extends State<InterventionsCalendarTab>
           ctx,
           apiFilteredByTechnicien: false,
         );
+      }
+      if (widget.technicianFieldView) {
+        rows = rows.where(isInterventionVisibleForTechnicianTerrain).toList();
       }
       if (!mounted) return;
       setState(() {

@@ -1588,6 +1588,56 @@ class AromaApi {
     throw _errorFromResponse(res);
   }
 
+  /// Brouillon rapport terrain (garde-fou TTL 15j côté serveur).
+  Future<Map<String, dynamic>?> getInterventionRapportTerrainDraft(
+    String interventionId,
+  ) async {
+    final res = await _client.get(
+      _uri(
+        '/api/interventions/${Uri.encodeComponent(interventionId)}/rapport-terrain/draft',
+      ),
+      headers: _headers(),
+    );
+    if (res.statusCode == 404) return null;
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        final payload = decoded['payload'];
+        if (payload is Map) {
+          return Map<String, dynamic>.from(payload);
+        }
+      }
+      return null;
+    }
+    throw _errorFromResponse(res);
+  }
+
+  Future<void> putInterventionRapportTerrainDraft({
+    required String interventionId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final res = await _client.put(
+      _uri(
+        '/api/interventions/${Uri.encodeComponent(interventionId)}/rapport-terrain/draft',
+      ),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode({'payload': payload}),
+    );
+    if (res.statusCode == 200) return;
+    throw _errorFromResponse(res);
+  }
+
+  Future<void> deleteInterventionRapportTerrainDraft(String interventionId) async {
+    final res = await _client.delete(
+      _uri(
+        '/api/interventions/${Uri.encodeComponent(interventionId)}/rapport-terrain/draft',
+      ),
+      headers: _headers(),
+    );
+    if (res.statusCode == 200 || res.statusCode == 404) return;
+    throw _errorFromResponse(res);
+  }
+
   Future<List<ExperienceAdc>> listExperienceAdc() async {
     final res = await _client.get(
       _uri('/api/experience-adc'),

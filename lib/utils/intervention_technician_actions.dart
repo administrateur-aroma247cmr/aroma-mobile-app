@@ -14,6 +14,7 @@ const _terminalEtats = {
 
 /// Plus de modification possible (rapport définitivement envoyé ou clôturé).
 const _lockedEtats = {
+  "Rapport d'intervention",
   'Rapport envoyé',
   'Effectué',
   'Clos',
@@ -33,13 +34,30 @@ String? interventionEtatForTechnicianDisplay(Intervention intervention) {
   return e;
 }
 
+/// États pour lesquels le rapport terrain a déjà été enregistré (vue technicien).
+const technicianRapportDoneEtats = {
+  "Rapport d'intervention",
+  'Rapport envoyé',
+  'Effectué',
+  'Clos',
+  'Terminé',
+};
+
+/// Masquer de la liste / calendrier terrain une intervention déjà rapportée.
+bool isInterventionVisibleForTechnicianTerrain(Intervention intervention) {
+  final e = (intervention.etatAfficheTechnicien ?? '').trim();
+  return !technicianRapportDoneEtats.contains(e);
+}
+
 /// Détermine le bouton à afficher selon l'état courant (CRM).
 TechnicianInterventionAction technicianInterventionAction(String? etat) {
   final e = (etat ?? '').trim();
   if (_lockedEtats.contains(e)) return TechnicianInterventionAction.none;
+  if (technicianRapportDoneEtats.contains(e)) {
+    return TechnicianInterventionAction.none;
+  }
   if (e == 'Démarré' ||
       e == "En attente rapport d'intervention" ||
-      e == "Rapport d'intervention" ||
       e == 'Traité') {
     return TechnicianInterventionAction.creerRapport;
   }
@@ -63,7 +81,6 @@ String technicianInterventionActionLabel(
     case TechnicianInterventionAction.creerRapport:
       final e = (etat ?? '').trim();
       if (hasRapportDraft ||
-          e == "Rapport d'intervention" ||
           e == "En attente rapport d'intervention" ||
           e == 'Traité') {
         return 'Continuer le rapport';

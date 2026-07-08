@@ -39,11 +39,13 @@ List<String> normalizeEntityCodes(dynamic raw) {
   return list;
 }
 
-/// Si la valeur stockée est absente ou non autorisée, repasse sur CM ou la 1re entité.
+/// Si la valeur stockée est absente ou non autorisée, repasse sur le pays du
+/// collaborateur ([preferredEntityCode]) si fourni, sinon CM ou la 1re entité.
 String? syncEntityWithAllowed({
   required String? stored,
   required List<String> allowed,
   required bool canEntityScopeAllFlag,
+  String? preferredEntityCode,
 }) {
   if (allowed.isEmpty) return stored;
   final norm = normalizeEntityCodes(allowed);
@@ -58,11 +60,45 @@ String? syncEntityWithAllowed({
     )) {
       return entityScopeAll;
     }
-    return norm.contains('CM') ? 'CM' : norm.first;
+    return resolveDefaultEntityCode(norm, preferredEntityCode);
   }
 
   if (cur != null && norm.contains(cur)) return cur;
-  return norm.contains('CM') ? 'CM' : norm.first;
+  return resolveDefaultEntityCode(norm, preferredEntityCode);
+}
+
+String resolveDefaultEntityCode(
+  List<String> allowed, [
+  String? preferredEntityCode,
+]) {
+  if (preferredEntityCode != null) {
+    final pref = normalizeEntityCode(preferredEntityCode);
+    if (allowed.contains(pref)) return pref;
+  }
+  return allowed.contains('CM') ? 'CM' : allowed.first;
+}
+
+/// À la connexion : positionne toujours le pays par défaut du compte (fiche RH).
+String? applyEntityScopeOnLogin({
+  required List<String> allowed,
+  required bool canEntityScopeAllFlag,
+  String? defaultEntityCode,
+}) {
+  if (allowed.isEmpty) return null;
+  final norm = normalizeEntityCodes(allowed);
+  if (norm.isEmpty) return null;
+
+  if (defaultEntityCode != null) {
+    final pref = normalizeEntityCode(defaultEntityCode);
+    if (norm.contains(pref)) return pref;
+  }
+
+  return syncEntityWithAllowed(
+    stored: null,
+    allowed: norm,
+    canEntityScopeAllFlag: canEntityScopeAllFlag,
+    preferredEntityCode: defaultEntityCode,
+  );
 }
 
 String entityDisplayLabel(String code, {Map<String, String>? labels}) {

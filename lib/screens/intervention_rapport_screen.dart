@@ -11,6 +11,7 @@ import '../models/intervention_rapport_draft.dart';
 import '../models/sortie_huile_diffuseur.dart';
 import '../providers/auth_provider.dart';
 import '../services/aroma_api.dart';
+import '../services/intervention_rapport_draft_sync.dart';
 import '../services/intervention_rapport_store.dart';
 import '../services/intervention_rapport_upload_service.dart';
 import '../theme/aroma_theme.dart';
@@ -18,6 +19,7 @@ import '../utils/format_utils.dart';
 import '../utils/intervention_evaluation_constants.dart';
 import '../utils/rapport_checklist.dart';
 import '../utils/sortie_huile_diffuseur_merge.dart';
+import '../utils/technician_view.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/interventions/rapport_photo_slot.dart';
 import '../widgets/interventions/rapport_retour_section.dart';
@@ -180,9 +182,14 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     final draft = _draft;
     if (draft == null) return;
     try {
-      await InterventionRapportStore.save(
-        draft.copyWith(updatedAt: DateTime.now().toIso8601String()),
-      );
+      final saved = draft.copyWith(updatedAt: DateTime.now().toIso8601String());
+      await InterventionRapportStore.save(saved);
+      if (mounted) {
+        final api = context.read<AuthProvider>().api;
+        unawaited(
+          InterventionRapportDraftSync.pushRemote(api: api, draft: saved),
+        );
+      }
     } catch (e) {
       if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -246,9 +253,20 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       _error = null;
     });
     try {
-      final api = context.read<AuthProvider>().api;
+      final auth = context.read<AuthProvider>();
+      final api = auth.api;
       // Toujours recharger l’intervention : le résumé liste peut omettre sortie_huile_*.
       final intervention = await api.getIntervention(widget.interventionId);
+      final matchCtx = await tryBuildTechnicianMatchContext(auth);
+      if (!canPerformTechnicianFieldActions(intervention, matchCtx)) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error =
+              'Action réservée au technicien assigné à cette intervention.';
+        });
+        return;
+      }
       final clientId = intervention.idClients;
       List<EquipementClient> equipements = [];
       if (clientId != null && clientId.isNotEmpty) {
@@ -305,7 +323,11 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         }
       }
 
-      var draft = await InterventionRapportStore.load(widget.interventionId);
+      var draft = await InterventionRapportDraftSync.mergeWithRemote(
+        api: api,
+        interventionId: widget.interventionId,
+        local: await InterventionRapportStore.load(widget.interventionId),
+      );
       if (draft == null) {
         draft = InterventionRapportDraft(
           interventionId: intervention.id,
@@ -914,6 +936,9 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         updatedAt: DateTime.now().toIso8601String(),
       );
       await InterventionRapportStore.save(saved);
+      unawaited(
+        InterventionRapportDraftSync.pushRemote(api: api, draft: saved),
+      );
 
       if (requireComplete) {
         final terrainBody = _buildRapportTerrainBody(saved);
@@ -926,6 +951,9 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         } catch (_) {
           // PDF + statut OK ; retour texte optionnel.
         }
+        // Brouillon serveur : supprimé uniquement côté API au POST /rapport-terrain
+        // (évite un double DELETE + double audit).
+        await InterventionRapportStore.delete(intervention.id);
       }
 
       if (!mounted) return;

@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
 import '../utils/format_utils.dart';
 import '../utils/intervention_technician_actions.dart';
+import '../utils/technician_view.dart';
 import '../services/intervention_rapport_store.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/interventions/intervention_materiel_sorti_card.dart';
@@ -42,6 +43,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
   Intervention? _intervention;
   bool _changed = false;
   bool _hasRapportDraft = false;
+  TechnicianMatchContext? _matchCtx;
 
   @override
   void initState() {
@@ -56,11 +58,17 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
       _error = null;
     });
     try {
-      final api = context.read<AuthProvider>().api;
+      final auth = context.read<AuthProvider>();
+      final api = auth.api;
+      TechnicianMatchContext? matchCtx;
+      if (widget.fieldActions) {
+        matchCtx = await tryBuildTechnicianMatchContext(auth);
+      }
       final row = await api.getIntervention(widget.interventionId);
       if (!mounted) return;
       setState(() {
         _intervention = row;
+        _matchCtx = matchCtx;
         _loading = false;
       });
       await _refreshRapportDraftFlag();
@@ -82,6 +90,18 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
   Future<void> _onTechnicianAction(TechnicianInterventionAction action) async {
     final i = _intervention;
     if (i == null || action == TechnicianInterventionAction.none) return;
+
+    if (!canPerformTechnicianFieldActions(i, _matchCtx)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Action réservée au technicien assigné à cette intervention.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (action == TechnicianInterventionAction.creerRapport) {
       await Navigator.of(context).push(
@@ -150,7 +170,9 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
     }
 
     final i = _intervention!;
-    final action = widget.fieldActions
+    final canAct = widget.fieldActions &&
+        canPerformTechnicianFieldActions(i, _matchCtx);
+    final action = canAct
         ? technicianInterventionAction(i.etat ?? i.etatApp)
         : TechnicianInterventionAction.none;
     final displayEtat = widget.technicianDisplay
@@ -167,7 +189,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
           _HeroCard(
             intervention: i,
             displayEtat: displayEtat,
-            fieldActions: widget.fieldActions,
+            fieldActions: canAct,
             action: action,
             actionBusy: _actionBusy,
             hasRapportDraft: _hasRapportDraft,
