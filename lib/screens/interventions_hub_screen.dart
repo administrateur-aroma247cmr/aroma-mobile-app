@@ -113,7 +113,7 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                           'calendrier-${auth.currentEntityCode}-$technicianView',
                         ),
                         technicianFieldView: technicianView,
-                        fieldActions: hasInterventionsModuleAccess(auth),
+                        fieldActions: hasTechnicianFieldActions(auth),
                       ),
                     'adc' => InterventionsAdcTab(
                         key: ValueKey('adc-${auth.currentEntityCode}'),
@@ -139,7 +139,7 @@ class _InterventionsHubScreenState extends State<InterventionsHubScreen> {
                           '${filterInterventionsByTechnicianAssignment(auth)}-'
                           '${hasInterventionsModuleAccess(auth)}',
                         ),
-                        fieldActions: hasInterventionsModuleAccess(auth),
+                        fieldActions: hasTechnicianFieldActions(auth),
                         filterByAssignment:
                             filterInterventionsByTechnicianAssignment(auth),
                         technicianDisplay:

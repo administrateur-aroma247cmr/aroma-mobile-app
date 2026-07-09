@@ -63,7 +63,7 @@ Future<TechnicianMatchContext> buildTechnicianMatchContext(
   }
 
   final names = <String>{};
-  String? technicienId = auth.technicienId;
+  String? technicienId = auth.technicienId ?? await auth.ensureTechnicienId();
 
   try {
     final collab = await auth.api.getCollaborateur(collabId);
@@ -146,8 +146,14 @@ bool canPerformTechnicianFieldActions(
   Intervention intervention,
   TechnicianMatchContext? ctx,
 ) {
+  if (intervention.isAssignedToMe == true) return true;
   if (ctx == null) return false;
   return isInterventionAssignedToTechnician(intervention, ctx);
+}
+
+/// Boutons terrain (Démarrer / rapport) : technicien assigné OU staff module interventions.
+bool hasTechnicianFieldActions(AuthProvider auth) {
+  return isTechnicianFieldView(auth) || hasInterventionsModuleAccess(auth);
 }
 
 bool isReparationAssignedToTechnician(

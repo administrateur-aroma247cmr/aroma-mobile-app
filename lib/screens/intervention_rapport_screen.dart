@@ -19,7 +19,6 @@ import '../utils/format_utils.dart';
 import '../utils/intervention_evaluation_constants.dart';
 import '../utils/rapport_checklist.dart';
 import '../utils/sortie_huile_diffuseur_merge.dart';
-import '../utils/technician_view.dart';
 import '../widgets/interventions/interventions_ui.dart';
 import '../widgets/interventions/rapport_photo_slot.dart';
 import '../widgets/interventions/rapport_retour_section.dart';
@@ -257,16 +256,6 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       final api = auth.api;
       // Toujours recharger l’intervention : le résumé liste peut omettre sortie_huile_*.
       final intervention = await api.getIntervention(widget.interventionId);
-      final matchCtx = await tryBuildTechnicianMatchContext(auth);
-      if (!canPerformTechnicianFieldActions(intervention, matchCtx)) {
-        if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error =
-              'Action réservée au technicien assigné à cette intervention.';
-        });
-        return;
-      }
       final clientId = intervention.idClients;
       List<EquipementClient> equipements = [];
       if (clientId != null && clientId.isNotEmpty) {

@@ -21,6 +21,7 @@ class Intervention {
     this.etat,
     this.etatApp,
     this.auteur,
+    this.isAssignedToMe,
     this.sortieHuileParDiffuseur = const [],
     this.sortieHuileTotale = const [],
     this.sortieHuileMode,
@@ -46,6 +47,8 @@ class Intervention {
   /// État affiché app / terrain (`etat_app` API).
   final String? etatApp;
   final String? auteur;
+  /// Aligné API ``is_assigned_to_me`` (null si API pas encore déployée).
+  final bool? isAssignedToMe;
   final List<SortieHuileDiffuseur> sortieHuileParDiffuseur;
   final List<SortieHuileTotale> sortieHuileTotale;
   /// `total` | `diffuseur` | `contractuel`
@@ -85,6 +88,12 @@ class Intervention {
   static String? _str(dynamic v) =>
       v is String && v.trim().isNotEmpty ? v.trim() : null;
 
+  static bool? _boolOrNull(dynamic v) {
+    if (v == true) return true;
+    if (v == false) return false;
+    return null;
+  }
+
   factory Intervention.fromJson(Map<String, dynamic> m) {
     return Intervention(
       id: '${m['id']}',
@@ -104,6 +113,7 @@ class Intervention {
       etat: _str(m['etat']),
       etatApp: _str(m['etat_app']),
       auteur: _str(m['auteur']),
+      isAssignedToMe: _boolOrNull(m['is_assigned_to_me']),
       sortieHuileParDiffuseur: parseSortieHuileParDiffuseur(m['sortie_huile_par_diffuseur']),
       sortieHuileTotale: parseSortieHuileTotale(m['sortie_huile_totale']),
       sortieHuileMode: parseSortieHuileMode(m['sortie_huile_mode']),

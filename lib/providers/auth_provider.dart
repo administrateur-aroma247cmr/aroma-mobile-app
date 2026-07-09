@@ -193,7 +193,8 @@ class AuthProvider extends ChangeNotifier {
         moduleId,
         isPrivilegedStaff: isPrivilegedStaff,
         canAccessComptabilite: canAccess('comptabilite'),
-        canAccessInterventions: canAccess('interventions'),
+        canAccessInterventions:
+            canAccess('interventions') || estTechnicienTerrain,
       );
 
   bool get canCreateTache => mod.canCreateTache(

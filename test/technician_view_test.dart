@@ -55,4 +55,31 @@ void main() {
       isTrue,
     );
   });
+
+  test('flag API is_assigned_to_me prime sur le contexte local', () {
+    expect(
+      canPerformTechnicianFieldActions(
+        Intervention(id: 'iv-1', isAssignedToMe: true),
+        null,
+      ),
+      isTrue,
+    );
+    expect(
+      canPerformTechnicianFieldActions(
+        Intervention(id: 'iv-1', isAssignedToMe: false),
+        ctx,
+      ),
+      isFalse,
+    );
+  });
+
+  test('isAssignedToMe false retombe sur le contexte local', () {
+    expect(
+      canPerformTechnicianFieldActions(
+        Intervention(id: 'iv-1', idTechnicien: 'tech-1', isAssignedToMe: false),
+        ctx,
+      ),
+      isTrue,
+    );
+  });
 }
