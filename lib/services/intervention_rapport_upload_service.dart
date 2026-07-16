@@ -23,7 +23,9 @@ class InterventionRapportUploadService {
     final uploaded = await _api.uploadGalerieToFolder([local], folder: folder);
     if (uploaded.isEmpty) return slot;
     final f = uploaded.first;
+    // Garde localPath pour les vignettes (évite un re-download MinIO plein format).
     return RapportPhotoSlot(
+      localPath: local,
       galerieId: f.id,
       galerieUrl: f.lienFichier,
       observation: slot.observation,

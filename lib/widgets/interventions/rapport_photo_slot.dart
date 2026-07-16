@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../models/intervention_rapport_draft.dart';
 import '../../theme/aroma_theme.dart';
+import '../../utils/rapport_photo_capture.dart';
 import '../modern_bottom_sheet.dart';
 
 /// Liste verticale de slots photo compacts (ligne par critère).
@@ -97,19 +98,27 @@ class RapportPhotoSlotWidget extends StatefulWidget {
 }
 
 class _RapportPhotoSlotWidgetState extends State<RapportPhotoSlotWidget> {
-  static final _picker = ImagePicker();
-
   bool _observationExpanded = false;
 
   RapportPhotoSlot get slot => widget.slot;
 
   Future<void> _pickImage(ImageSource source) async {
-    final file = await _picker.pickImage(
-      source: source,
-      imageQuality: 90,
-    );
-    if (file == null) return;
-    widget.onChanged(slot.copyWith(localPath: file.path));
+    try {
+      final path = await RapportPhotoCapture.pick(source);
+      if (path == null || !mounted) return;
+      // Nouvelle prise : invalide l’ancien fichier galerie pour forcer le re-upload.
+      widget.onChanged(
+        slot.copyWith(localPath: path, clearGalerie: true),
+      );
+    } on RapportPhotoCaptureException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
   }
 
   Future<void> _showPhotoSourceSheet(BuildContext context) async {
@@ -158,14 +167,38 @@ class _RapportPhotoSlotWidgetState extends State<RapportPhotoSlotWidget> {
   bool get _isUploaded =>
       slot.galerieId != null && slot.galerieId!.isNotEmpty;
 
-  Widget? _previewImage() {
+  /// Decode limité pour éviter OOM Android (vignettes, pas le bitmap plein format).
+  int _previewCachePx(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final logical = widget.compact
+        ? 46.0
+        : widget.gridTile
+            ? 200.0
+            : 120.0;
+    return (logical * dpr).round().clamp(64, 512);
+  }
+
+  Widget? _previewImage(BuildContext context) {
+    final cachePx = _previewCachePx(context);
     final local = slot.localPath;
     if (local != null && local.isNotEmpty && File(local).existsSync()) {
-      return Image.file(File(local), fit: BoxFit.cover);
+      return Image.file(
+        File(local),
+        fit: BoxFit.cover,
+        cacheWidth: cachePx,
+        cacheHeight: cachePx,
+        filterQuality: FilterQuality.low,
+      );
     }
     final url = slot.galerieUrl;
     if (url != null && url.isNotEmpty) {
-      return Image.network(url, fit: BoxFit.cover);
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        cacheWidth: cachePx,
+        cacheHeight: cachePx,
+        filterQuality: FilterQuality.low,
+      );
     }
     return null;
   }
@@ -220,7 +253,7 @@ class _RapportPhotoSlotWidgetState extends State<RapportPhotoSlotWidget> {
   }
 
   Widget _buildCompactRow(BuildContext context) {
-    final preview = _previewImage();
+    final preview = _previewImage(context);
     final hasPhoto = preview != null;
     const accent = Color(0xFF0EA5E9);
     const done = Color(0xFF16A34A);
@@ -385,7 +418,7 @@ class _RapportPhotoSlotWidgetState extends State<RapportPhotoSlotWidget> {
   }
 
   Widget _buildGridTile(BuildContext context) {
-    final preview = _previewImage();
+    final preview = _previewImage(context);
     final hasPhoto = preview != null;
 
     return Container(
@@ -505,7 +538,7 @@ class _RapportPhotoSlotWidgetState extends State<RapportPhotoSlotWidget> {
   }
 
   Widget _buildListTile(BuildContext context) {
-    final preview = _previewImage();
+    final preview = _previewImage(context);
     final hasPhoto = preview != null;
 
     return Container(

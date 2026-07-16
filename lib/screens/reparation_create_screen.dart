@@ -1,6 +1,5 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/client_lite.dart';
@@ -10,6 +9,7 @@ import '../models/stock_lite.dart';
 import '../models/technicien.dart';
 import '../providers/auth_provider.dart';
 import '../theme/aroma_theme.dart';
+import '../utils/rapport_photo_capture.dart';
 import '../widgets/modern_select_field.dart';
 import '../widgets/interventions/interventions_ui.dart';
 
@@ -207,14 +207,19 @@ class _ReparationCreateScreenState extends State<ReparationCreateScreen> {
   }
 
   Future<void> _pickPhotos() async {
-    final picker = ImagePicker();
-    final images = await picker.pickMultiImage(imageQuality: 85);
-    if (images.isEmpty || !mounted) return;
-    setState(() {
-      for (final img in images) {
-        if (img.path.isNotEmpty) _photoPaths.add(img.path);
-      }
-    });
+    try {
+      final paths = await AppPhotoCapture.pickMulti();
+      if (paths.isEmpty || !mounted) return;
+      setState(() => _photoPaths.addAll(paths));
+    } on AppPhotoCaptureException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
   }
 
   Future<void> _pickDocuments() async {

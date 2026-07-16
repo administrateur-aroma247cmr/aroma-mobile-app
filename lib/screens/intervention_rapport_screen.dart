@@ -51,6 +51,8 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   final _uploadingSlots = <String>{};
   Timer? _autoSaveTimer;
   InterventionRapportUploadService? _uploadService;
+  /// Sérialise les uploads (1 à la fois) sans bloquer la prise de photo.
+  Future<void> _uploadChain = Future<void>.value();
 
   @override
   void initState() {
@@ -202,6 +204,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
     required String slotKey,
     required RapportPhotoSlot slot,
     required void Function(RapportPhotoSlot) onUpdated,
+    required bool Function(RapportPhotoSlot uploaded) stillCurrent,
   }) async {
     final intervention = _intervention;
     final uploadService = _uploadService;
@@ -218,6 +221,8 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         folder: _rapportFolder(intervention),
       );
       if (!mounted) return;
+      // Ignore le résultat si le technicien a déjà remplacé la photo.
+      if (!stillCurrent(uploaded)) return;
       onUpdated(uploaded);
       final draft = _draft;
       if (draft != null) {
@@ -237,6 +242,25 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         setState(() => _uploadingSlots.remove(slotKey));
       }
     }
+  }
+
+  void _enqueueSlotUpload({
+    required String slotKey,
+    required RapportPhotoSlot slot,
+    required void Function(RapportPhotoSlot) onUpdated,
+    required bool Function(RapportPhotoSlot uploaded) stillCurrent,
+  }) {
+    _uploadChain = _uploadChain.then((_) async {
+      if (!mounted) return;
+      await _uploadSlotInBackground(
+        slotKey: slotKey,
+        slot: slot,
+        onUpdated: onUpdated,
+        stillCurrent: stillCurrent,
+      );
+    }).catchError((Object _) {
+      // Ne casse pas la file pour les uploads suivants.
+    });
   }
 
   TextEditingController _observationController(String key, String initial) {
@@ -489,18 +513,28 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   void _setTechnicienPhoto(RapportPhotoSlot slot) {
     final draft = _draft;
     if (draft == null) return;
+    final expectedLocal = slot.localPath;
     setState(() => _draft = draft.copyWith(technicienPhoto: slot));
     _scheduleAutoSave();
-    unawaited(
-      _uploadSlotInBackground(
-        slotKey: 'technicien',
-        slot: slot,
-        onUpdated: (uploaded) {
-          final d = _draft;
-          if (d == null) return;
-          setState(() => _draft = d.copyWith(technicienPhoto: uploaded));
-        },
-      ),
+    _enqueueSlotUpload(
+      slotKey: 'technicien',
+      slot: slot,
+      onUpdated: (uploaded) {
+        final d = _draft;
+        if (d == null) return;
+        setState(() => _draft = d.copyWith(technicienPhoto: uploaded));
+      },
+      stillCurrent: (uploaded) {
+        final current = _draft?.technicienPhoto;
+        if (current == null) return false;
+        // Remplacé par une autre photo locale.
+        if (expectedLocal != null &&
+            current.localPath != null &&
+            current.localPath != expectedLocal) {
+          return false;
+        }
+        return true;
+      },
     );
   }
 
@@ -511,6 +545,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
   ) {
     final draft = _draft;
     if (draft == null) return;
+    final expectedLocal = slot.localPath;
     setState(() {
       _draft = draft.copyWith(
         diffuseurs: draft.diffuseurs.map((d) {
@@ -522,25 +557,36 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       );
     });
     _scheduleAutoSave();
-    unawaited(
-      _uploadSlotInBackground(
-        slotKey: '${equipementId}_$checkKey',
-        slot: slot,
-        onUpdated: (uploaded) {
-          final d = _draft;
-          if (d == null) return;
-          setState(() {
-            _draft = d.copyWith(
-              diffuseurs: d.diffuseurs.map((diff) {
-                if (diff.equipementId != equipementId) return diff;
-                final photos = Map<String, RapportPhotoSlot>.from(diff.photos);
-                photos[checkKey] = uploaded;
-                return diff.copyWith(photos: photos);
-              }).toList(),
-            );
-          });
-        },
-      ),
+    _enqueueSlotUpload(
+      slotKey: '${equipementId}_$checkKey',
+      slot: slot,
+      onUpdated: (uploaded) {
+        final d = _draft;
+        if (d == null) return;
+        setState(() {
+          _draft = d.copyWith(
+            diffuseurs: d.diffuseurs.map((diff) {
+              if (diff.equipementId != equipementId) return diff;
+              final photos = Map<String, RapportPhotoSlot>.from(diff.photos);
+              photos[checkKey] = uploaded;
+              return diff.copyWith(photos: photos);
+            }).toList(),
+          );
+        });
+      },
+      stillCurrent: (_) {
+        final current = _draft?.diffuseurs
+            .where((d) => d.equipementId == equipementId)
+            .map((d) => d.photos[checkKey])
+            .firstOrNull;
+        if (current == null) return false;
+        if (expectedLocal != null &&
+            current.localPath != null &&
+            current.localPath != expectedLocal) {
+          return false;
+        }
+        return true;
+      },
     );
   }
 
@@ -892,6 +938,9 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
       final folder = 'Rapports/$ref';
 
       Future<RapportPhotoSlot> uploadSlot(RapportPhotoSlot slot) async {
+        if (slot.galerieId != null && slot.galerieId!.isNotEmpty) {
+          return slot;
+        }
         final local = slot.localPath;
         if (local == null || local.isEmpty || !File(local).existsSync()) {
           return slot;
@@ -903,6 +952,7 @@ class _InterventionRapportScreenState extends State<InterventionRapportScreen> {
         if (uploaded.isEmpty) return slot;
         final f = uploaded.first;
         return RapportPhotoSlot(
+          localPath: local,
           galerieId: f.id,
           galerieUrl: f.lienFichier,
           observation: slot.observation,

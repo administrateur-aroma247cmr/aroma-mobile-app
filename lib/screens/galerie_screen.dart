@@ -9,6 +9,7 @@ import '../models/galerie_fichier.dart';
 import '../providers/auth_provider.dart';
 import '../services/aroma_api.dart';
 import '../theme/aroma_theme.dart';
+import '../utils/rapport_photo_capture.dart';
 import '../widgets/modern_bottom_sheet.dart';
 
 /// Aligné sur le CRM web (rôle privilégié ou auteur de l’upload).
@@ -687,28 +688,41 @@ class GalerieScreenState extends State<GalerieScreen> {
   }
 
   Future<void> _pickAndUploadPhoto(ImageSource source) async {
-    final x = await _picker.pickImage(source: source, imageQuality: 90);
-    if (x == null) return;
-    final fileNamesByPath = await _askRenameBeforeUpload([x.path]);
-    if (fileNamesByPath == null) return;
-    await _waitDialogFrame();
-    if (!mounted) return;
-    final folder = await _resolveUploadDestination();
-    if (!mounted) return;
-    await _uploadPaths([x.path], folder: folder, fileNamesByPath: fileNamesByPath);
+    try {
+      final path = await AppPhotoCapture.pick(source);
+      if (path == null) return;
+      final fileNamesByPath = await _askRenameBeforeUpload([path]);
+      if (fileNamesByPath == null) return;
+      await _waitDialogFrame();
+      if (!mounted) return;
+      final folder = await _resolveUploadDestination();
+      if (!mounted) return;
+      await _uploadPaths([path], folder: folder, fileNamesByPath: fileNamesByPath);
+    } on AppPhotoCaptureException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFDC2626)),
+      );
+    }
   }
 
   Future<void> _pickMultipleMedia() async {
-    final list = await _picker.pickMultipleMedia();
-    if (list.isEmpty) return;
-    final paths = list.map((e) => e.path).toList();
-    final fileNamesByPath = await _askRenameBeforeUpload(paths);
-    if (fileNamesByPath == null) return;
-    await _waitDialogFrame();
-    if (!mounted) return;
-    final folder = await _resolveUploadDestination();
-    if (!mounted) return;
-    await _uploadPaths(paths, folder: folder, fileNamesByPath: fileNamesByPath);
+    try {
+      final paths = await AppPhotoCapture.pickMulti();
+      if (paths.isEmpty) return;
+      final fileNamesByPath = await _askRenameBeforeUpload(paths);
+      if (fileNamesByPath == null) return;
+      await _waitDialogFrame();
+      if (!mounted) return;
+      final folder = await _resolveUploadDestination();
+      if (!mounted) return;
+      await _uploadPaths(paths, folder: folder, fileNamesByPath: fileNamesByPath);
+    } on AppPhotoCaptureException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFDC2626)),
+      );
+    }
   }
 
   Future<void> _pickFiles() async {
@@ -759,8 +773,8 @@ class GalerieScreenState extends State<GalerieScreen> {
         ),
         _UploadActionTile(
           icon: Icons.collections_outlined,
-          title: 'Photos / medias (plusieurs)',
-          subtitle: 'Selection multiple',
+          title: 'Photos (plusieurs)',
+          subtitle: 'Sélection multiple compressée',
           onTap: () {
             Navigator.pop(context);
             _pickMultipleMedia();
@@ -1180,17 +1194,29 @@ class _GalerieTile extends StatelessWidget {
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     )
-                  : Image.network(
-                      fichier.lienFichier,
-                      headers: imageHeaders,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(
-                            child: Icon(Icons.broken_image_outlined, size: 48),
-                          ),
-                      loadingBuilder: (c, w, p) {
-                        if (p == null) return w;
-                        return const Center(child: CircularProgressIndicator());
+                  : Builder(
+                      builder: (context) {
+                        final dpr = MediaQuery.devicePixelRatioOf(context);
+                        final cachePx =
+                            (160 * dpr).round().clamp(128, 512);
+                        return Image.network(
+                          fichier.lienFichier,
+                          headers: imageHeaders,
+                          fit: BoxFit.cover,
+                          cacheWidth: cachePx,
+                          cacheHeight: cachePx,
+                          filterQuality: FilterQuality.low,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(
+                                child: Icon(Icons.broken_image_outlined, size: 48),
+                              ),
+                          loadingBuilder: (c, w, p) {
+                            if (p == null) return w;
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                        );
                       },
                     ),
             ),
